@@ -6,7 +6,7 @@ namespace OrasBackup.Core.Tests;
 
 public class AesEncryptorTests
 {
-    private readonly AesEncryptor _sut = new(iterations: 10_000); // low iterations for test speed
+    private readonly AesEncryptor _sut = new(pbkdf2Iterations: 10_000); // low iterations for test speed
     private readonly byte[] _key = RandomNumberGenerator.GetBytes(32);
 
     [Fact]
