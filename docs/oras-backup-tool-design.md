@@ -301,7 +301,7 @@ The `OrasClient` reads credentials from these sources. No credentials are stored
 
 | Concern | Approach |
 |---|---|
-| Runtime | .NET 8+ (single-file publish, AOT where possible) |
+| Runtime | .NET 10 (single-file publish, AOT where possible) |
 | GUI | Avalonia UI (renders natively on Win/macOS/Linux) |
 | File paths | Use `Path.Combine`, normalize separators in manifests to `/` |
 | Permissions | Store POSIX permissions in FileSnapshot on Linux/macOS, skip on Windows |
@@ -370,9 +370,9 @@ The CLI daemon mode is a natural fit for running as a Docker container on a NAS 
 ### Dockerfile
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/runtime:8.0-alpine AS base
+FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS base
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 COPY . .
 RUN dotnet publish src/OrasBackup.Cli -c Release -o /app --self-contained false

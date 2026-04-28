@@ -108,8 +108,6 @@ public class RestoreEngineTests : IDisposable
             Files = [new FileSnapshot("f.txt", "h", 1, DateTime.UtcNow)]
         };
         SetupOras("latest", manifest, CreateTar(("f.txt", "data")));
-        _oras.ListTagsAsync("registry.example.com/test/repo", Arg.Any<CancellationToken>())
-            .Returns(new[] { "old", "latest" });
 
         await _sut.RestoreAsync(new RestoreOptions("registry.example.com/test/repo", null, _restoreDir, _key, false));
 

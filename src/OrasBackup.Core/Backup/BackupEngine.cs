@@ -15,6 +15,9 @@ public sealed class BackupEngine
     private readonly IOrasClient _oras;
     private readonly ILogger<BackupEngine> _logger;
 
+    /// <summary>The manifest from the last successful backup, for caching.</summary>
+    public DeltaManifest? LastManifest { get; private set; }
+
     public BackupEngine(DeltaTracker delta, IEncryptor encryptor, IOrasClient oras, ILogger<BackupEngine> logger)
     {
         _delta = delta;
@@ -30,32 +33,47 @@ public sealed class BackupEngine
 
         try
         {
-            // 1. Compute delta across all source paths
-            var allAdded = new List<FileSnapshot>();
-            var allModified = new List<FileSnapshot>();
-            var allDeleted = new List<string>();
-            var allUnchanged = new List<FileSnapshot>();
-
+            // 1. Scan ALL source paths into one file list, then compute a single delta
+            var allCurrentFiles = new List<FileSnapshot>();
             foreach (var source in profile.SourcePaths)
+                allCurrentFiles.AddRange(_delta.ScanDirectory(source, profile.ExcludePatterns));
+
+            var added = new List<FileSnapshot>();
+            var modified = new List<FileSnapshot>();
+            var unchanged = new List<FileSnapshot>();
+            var deleted = new List<string>();
+
+            if (previous is null)
             {
-                var result = _delta.ComputeDelta(source, previous, profile.ExcludePatterns);
-                allAdded.AddRange(result.Added);
-                allModified.AddRange(result.Modified);
-                allDeleted.AddRange(result.Deleted);
-                allUnchanged.AddRange(result.Unchanged);
+                added.AddRange(allCurrentFiles);
+            }
+            else
+            {
+                var prevByPath = previous.Files.ToDictionary(f => f.RelativePath, StringComparer.Ordinal);
+                foreach (var file in allCurrentFiles)
+                {
+                    if (!prevByPath.TryGetValue(file.RelativePath, out var prev))
+                        added.Add(file);
+                    else if (prev.Sha256 != file.Sha256)
+                        modified.Add(file);
+                    else
+                        unchanged.Add(file);
+                }
+                var currentPaths = allCurrentFiles.Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal);
+                deleted.AddRange(previous.Files.Where(f => !currentPaths.Contains(f.RelativePath)).Select(f => f.RelativePath));
             }
 
-            var changedFiles = allAdded.Concat(allModified).ToList();
+            var changedFiles = added.Concat(modified).ToList();
             _logger.LogInformation("Delta: {Added} added, {Modified} modified, {Deleted} deleted, {Unchanged} unchanged",
-                allAdded.Count, allModified.Count, allDeleted.Count, allUnchanged.Count);
+                added.Count, modified.Count, deleted.Count, unchanged.Count);
 
             // 2. Build manifest
             var manifest = new DeltaManifest
             {
                 BackupId = backupId,
                 BasedOn = previous?.BackupId,
-                Files = allAdded.Concat(allModified).Concat(allUnchanged).ToList(),
-                Deleted = allDeleted
+                Files = added.Concat(modified).Concat(unchanged).ToList(),
+                Deleted = deleted
             };
 
             // 3. Tar changed files
@@ -70,7 +88,7 @@ public sealed class BackupEngine
                 ? _encryptor.Encrypt(tarBytes, encryptionKey)
                 : tarBytes;
 
-            // 5. Push to registry
+            // 5. Push to registry with backup ID tag
             var layers = new List<OrasLayer>
             {
                 new("application/vnd.orasbackup.manifest+json", encManifest)
@@ -81,11 +99,16 @@ public sealed class BackupEngine
             var reference = $"{profile.Registry}:{backupId}";
             await _oras.PushAsync(reference, layers, ct);
 
+            // 6. Also push as :latest for easy restore-without-id
+            var latestRef = $"{profile.Registry}:latest";
+            await _oras.PushAsync(latestRef, layers, ct);
+
+            LastManifest = manifest;
             sw.Stop();
             _logger.LogInformation("Backup {Id} completed in {Duration}", backupId, sw.Elapsed);
 
-            return new BackupResult(backupId, allAdded.Count, allModified.Count, allDeleted.Count,
-                allUnchanged.Count, encTar.Length, sw.Elapsed, true);
+            return new BackupResult(backupId, added.Count, modified.Count, deleted.Count,
+                unchanged.Count, encTar.Length, sw.Elapsed, true);
         }
         catch (Exception ex)
         {
@@ -105,7 +128,6 @@ public sealed class BackupEngine
             foreach (var file in files)
             {
                 ct.ThrowIfCancellationRequested();
-                // Find the actual file path from source paths
                 var fullPath = sourcePaths
                     .Select(s => Path.Combine(s, file.RelativePath.Replace('/', Path.DirectorySeparatorChar)))
                     .FirstOrDefault(File.Exists)

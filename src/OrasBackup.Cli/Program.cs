@@ -43,10 +43,15 @@ backupCmd.SetHandler(async (profile, password, keyFile) =>
 {
     var p = ProfileHelper.Load(profile);
     var key = KeyHelper.Resolve(password, keyFile, p.Encryption);
+    var cache = new ManifestCache();
+    var previous = cache.Load(profile);
     var engine = BuildBackupEngine();
-    var result = await engine.RunBackupAsync(p, key, null);
+    var result = await engine.RunBackupAsync(p, key, previous);
     if (result.Success)
+    {
+        cache.Save(profile, engine.LastManifest!);
         Console.WriteLine($"Backup {result.BackupId} complete: +{result.FilesAdded} ~{result.FilesModified} -{result.FilesDeleted} ({result.Duration.TotalSeconds:F1}s)");
+    }
     else
         Console.Error.WriteLine($"Backup failed: {result.Error}");
 }, profileOpt, passwordOpt, keyFileOpt);

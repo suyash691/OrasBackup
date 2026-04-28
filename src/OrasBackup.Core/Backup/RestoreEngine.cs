@@ -26,11 +26,7 @@ public sealed class RestoreEngine
         // 1. Resolve the backup ID (latest tag if not specified)
         var backupId = options.BackupId;
         if (string.IsNullOrEmpty(backupId))
-        {
-            var tags = await _oras.ListTagsAsync(options.Registry, ct);
-            backupId = tags.LastOrDefault()
-                ?? throw new InvalidOperationException("No backups found in registry");
-        }
+            backupId = "latest";
 
         // 2. Walk the chain and collect manifests in order (oldest first)
         var chain = new List<(DeltaManifest Manifest, string Reference)>();

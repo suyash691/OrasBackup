@@ -39,7 +39,7 @@ public sealed class BackupScheduler : IDisposable
             var result = await _engine.RunBackupAsync(profile, encryptionKey, _lastManifest, ct);
             if (result.Success)
             {
-                _lastManifest = new DeltaManifest { BackupId = result.BackupId };
+                _lastManifest = _engine.LastManifest;
                 _logger.LogInformation("Scheduled backup {Id} succeeded: +{A} ~{M} -{D}",
                     result.BackupId, result.FilesAdded, result.FilesModified, result.FilesDeleted);
             }

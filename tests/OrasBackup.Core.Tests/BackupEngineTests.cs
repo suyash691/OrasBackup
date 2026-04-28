@@ -40,7 +40,7 @@ public class BackupEngineTests : IDisposable
         Assert.True(result.Success);
         Assert.Equal(1, result.FilesAdded);
         Assert.Equal(0, result.FilesDeleted);
-        await _oras.Received(1).PushAsync(
+        await _oras.Received(2).PushAsync(
             Arg.Is<string>(r => r.StartsWith(profile.Registry + ":")),
             Arg.Is<IReadOnlyList<OrasLayer>>(l => l.Count == 2), // manifest + data
             Arg.Any<CancellationToken>());
