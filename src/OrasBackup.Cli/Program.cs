@@ -8,45 +8,38 @@ using OrasBackup.Core.Delta;
 using OrasBackup.Core.Oras;
 using OrasBackup.Core.Scheduling;
 
-var profileOpt = new Option<string>("--profile", "Profile name") { IsRequired = true };
-var passwordOpt = new Option<string?>("--password", "Encryption password");
-var keyFileOpt = new Option<string?>("--key-file", "Path to 32-byte key file");
+var profileOpt = new Option<string>("--profile") { Required = true, Description = "Profile name" };
+var passwordOpt = new Option<string?>("--password") { Description = "Encryption password" };
+var keyFileOpt = new Option<string?>("--key-file") { Description = "Path to 32-byte key file" };
 
 var root = new RootCommand("OrasBackup — encrypted incremental backups to OCI registries");
 
 // --- init ---
-var initCmd = new Command("init", "Create a new backup profile");
-var nameOpt = new Option<string>("--name", "Profile name") { IsRequired = true };
-var sourceOpt = new Option<string[]>("--source", "Source directories") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
-var registryOpt = new Option<string>("--registry", "OCI registry reference") { IsRequired = true };
-initCmd.AddOption(nameOpt);
-initCmd.AddOption(sourceOpt);
-initCmd.AddOption(registryOpt);
-initCmd.SetHandler((name, sources, registry) =>
+var nameOpt = new Option<string>("--name") { Required = true, Description = "Profile name" };
+var sourceOpt = new Option<string[]>("--source") { Required = true, Description = "Source directories", AllowMultipleArgumentsPerToken = true };
+var registryOpt = new Option<string>("--registry") { Required = true, Description = "OCI registry reference" };
+var initCmd = new Command("init", "Create a new backup profile") { nameOpt, sourceOpt, registryOpt };
+initCmd.SetAction(parseResult =>
 {
-    var profile = new BackupProfile
-    {
-        Name = name,
-        SourcePaths = sources.ToList(),
-        Registry = registry
-    };
+    var name = parseResult.GetValue(nameOpt)!;
+    var sources = parseResult.GetValue(sourceOpt)!;
+    var registry = parseResult.GetValue(registryOpt)!;
+    var profile = new BackupProfile { Name = name, SourcePaths = sources.ToList(), Registry = registry };
     ProfileHelper.Save(profile);
     Console.WriteLine($"Profile '{name}' created at {ProfileHelper.GetProfilePath(name)}");
-}, nameOpt, sourceOpt, registryOpt);
+});
 
 // --- backup ---
-var backupCmd = new Command("backup", "Run a backup");
-backupCmd.AddOption(profileOpt);
-backupCmd.AddOption(passwordOpt);
-backupCmd.AddOption(keyFileOpt);
-backupCmd.SetHandler(async (profile, password, keyFile) =>
+var backupCmd = new Command("backup", "Run a backup") { profileOpt, passwordOpt, keyFileOpt };
+backupCmd.SetAction(async (parseResult, ct) =>
 {
+    var profile = parseResult.GetValue(profileOpt)!;
     var p = ProfileHelper.Load(profile);
-    var key = KeyHelper.Resolve(password, keyFile, p.Encryption);
+    var key = KeyHelper.Resolve(parseResult.GetValue(passwordOpt), parseResult.GetValue(keyFileOpt), p.Encryption);
     var cache = new ManifestCache();
     var previous = cache.Load(profile);
     var engine = BuildBackupEngine();
-    var result = await engine.RunBackupAsync(p, key, previous);
+    var result = await engine.RunBackupAsync(p, key, previous, ct);
     if (result.Success)
     {
         cache.Save(profile, engine.LastManifest!);
@@ -54,33 +47,28 @@ backupCmd.SetHandler(async (profile, password, keyFile) =>
     }
     else
         Console.Error.WriteLine($"Backup failed: {result.Error}");
-}, profileOpt, passwordOpt, keyFileOpt);
+});
 
 // --- restore ---
-var restoreCmd = new Command("restore", "Restore from a backup");
-var targetOpt = new Option<string>("--target", "Target directory for restore") { IsRequired = true };
-var backupIdOpt = new Option<string?>("--backup-id", "Specific backup ID (default: latest)");
-restoreCmd.AddOption(profileOpt);
-restoreCmd.AddOption(targetOpt);
-restoreCmd.AddOption(backupIdOpt);
-restoreCmd.AddOption(passwordOpt);
-restoreCmd.AddOption(keyFileOpt);
-restoreCmd.SetHandler(async (profile, target, backupId, password, keyFile) =>
+var targetOpt = new Option<string>("--target") { Required = true, Description = "Target directory for restore" };
+var backupIdOpt = new Option<string?>("--backup-id") { Description = "Specific backup ID (default: latest)" };
+var restoreCmd = new Command("restore", "Restore from a backup") { profileOpt, targetOpt, backupIdOpt, passwordOpt, keyFileOpt };
+restoreCmd.SetAction(async (parseResult, ct) =>
 {
+    var profile = parseResult.GetValue(profileOpt)!;
     var p = ProfileHelper.Load(profile);
-    var key = KeyHelper.Resolve(password, keyFile, p.Encryption);
-    var restoreEngine = BuildRestoreEngine();
-    var opts = new RestoreOptions(p.Registry, backupId, target, key, p.Encryption.Enabled);
-    await restoreEngine.RestoreAsync(opts);
-    Console.WriteLine($"Restore complete to {target}");
-}, profileOpt, targetOpt, backupIdOpt, passwordOpt, keyFileOpt);
+    var key = KeyHelper.Resolve(parseResult.GetValue(passwordOpt), parseResult.GetValue(keyFileOpt), p.Encryption);
+    var opts = new RestoreOptions(p.Registry, parseResult.GetValue(backupIdOpt), parseResult.GetValue(targetOpt)!, key, p.Encryption.Enabled);
+    await BuildRestoreEngine().RestoreAsync(opts, ct);
+    Console.WriteLine($"Restore complete to {opts.TargetDir}");
+});
 
 // --- list ---
-var listCmd = new Command("list", "List backups or profiles");
-var listProfileOpt = new Option<string?>("--profile", "Profile name (omit to list all profiles)");
-listCmd.AddOption(listProfileOpt);
-listCmd.SetHandler(async (profile) =>
+var listProfileOpt = new Option<string?>("--profile") { Description = "Profile name (omit to list all profiles)" };
+var listCmd = new Command("list", "List backups or profiles") { listProfileOpt };
+listCmd.SetAction(async (parseResult, ct) =>
 {
+    var profile = parseResult.GetValue(listProfileOpt);
     if (string.IsNullOrEmpty(profile))
     {
         Console.WriteLine("Profiles:");
@@ -89,63 +77,55 @@ listCmd.SetHandler(async (profile) =>
         return;
     }
     var p = ProfileHelper.Load(profile);
-    var oras = BuildOrasClient();
-    var tags = await oras.ListTagsAsync(p.Registry);
+    var tags = await BuildOrasClient().ListTagsAsync(p.Registry, ct);
     Console.WriteLine($"Backups for '{profile}':");
     foreach (var tag in tags)
         Console.WriteLine($"  {tag}");
-}, listProfileOpt);
+});
 
 // --- daemon ---
-var daemonCmd = new Command("daemon", "Run periodic backups in the foreground");
-var intervalOpt = new Option<int>("--interval", () => 60, "Backup interval in minutes");
-daemonCmd.AddOption(profileOpt);
-daemonCmd.AddOption(intervalOpt);
-daemonCmd.AddOption(passwordOpt);
-daemonCmd.AddOption(keyFileOpt);
-daemonCmd.SetHandler(async (profile, interval, password, keyFile) =>
+var intervalOpt = new Option<int>("--interval") { Description = "Backup interval in minutes", DefaultValueFactory = _ => 60 };
+var daemonCmd = new Command("daemon", "Run periodic backups in the foreground") { profileOpt, intervalOpt, passwordOpt, keyFileOpt };
+daemonCmd.SetAction(async (parseResult, ct) =>
 {
+    var profile = parseResult.GetValue(profileOpt)!;
     var p = ProfileHelper.Load(profile);
-    p.Schedule.IntervalMinutes = interval;
-    var key = KeyHelper.Resolve(password, keyFile, p.Encryption);
+    p.Schedule.IntervalMinutes = parseResult.GetValue(intervalOpt);
+    var key = KeyHelper.Resolve(parseResult.GetValue(passwordOpt), parseResult.GetValue(keyFileOpt), p.Encryption);
 
-    using var cts = new CancellationTokenSource();
+    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-    AppDomain.CurrentDomain.ProcessExit += (_, _) => cts.Cancel();
 
     var engine = BuildBackupEngine();
     using var scheduler = new BackupScheduler(engine, LoggerFactory.Create(b => b.AddConsole()).CreateLogger<BackupScheduler>());
 
-    Console.WriteLine($"Daemon started: backing up '{profile}' every {interval}m. Press Ctrl+C to stop.");
+    Console.WriteLine($"Daemon started: backing up '{profile}' every {p.Schedule.IntervalMinutes}m. Press Ctrl+C to stop.");
     try { await scheduler.RunAsync(p, key, cts.Token); }
     catch (OperationCanceledException) { Console.WriteLine("Daemon stopped."); }
-}, profileOpt, intervalOpt, passwordOpt, keyFileOpt);
-
-root.AddCommand(initCmd);
-root.AddCommand(backupCmd);
-root.AddCommand(restoreCmd);
-root.AddCommand(listCmd);
-root.AddCommand(daemonCmd);
+});
 
 // --- compact ---
-var compactCmd = new Command("compact", "Compact the delta chain into a single full backup");
-compactCmd.AddOption(profileOpt);
-compactCmd.AddOption(passwordOpt);
-compactCmd.AddOption(keyFileOpt);
-compactCmd.SetHandler(async (profile, password, keyFile) =>
+var compactCmd = new Command("compact", "Compact the delta chain into a single full backup") { profileOpt, passwordOpt, keyFileOpt };
+compactCmd.SetAction(async (parseResult, ct) =>
 {
+    var profile = parseResult.GetValue(profileOpt)!;
     var p = ProfileHelper.Load(profile);
-    var key = KeyHelper.Resolve(password, keyFile, p.Encryption);
-    var engine = BuildCompactionEngine();
-    var result = await engine.CompactAsync(p, key);
+    var key = KeyHelper.Resolve(parseResult.GetValue(passwordOpt), parseResult.GetValue(keyFileOpt), p.Encryption);
+    var result = await BuildCompactionEngine().CompactAsync(p, key, ct);
     if (result.Success)
         Console.WriteLine($"Compaction complete: new full backup {result.BackupId} ({result.FilesAdded} files, {result.Duration.TotalSeconds:F1}s)");
     else
         Console.Error.WriteLine($"Compaction failed: {result.Error}");
-}, profileOpt, passwordOpt, keyFileOpt);
-root.AddCommand(compactCmd);
+});
 
-return await root.InvokeAsync(args);
+root.Subcommands.Add(initCmd);
+root.Subcommands.Add(backupCmd);
+root.Subcommands.Add(restoreCmd);
+root.Subcommands.Add(listCmd);
+root.Subcommands.Add(daemonCmd);
+root.Subcommands.Add(compactCmd);
+
+return await root.Parse(args).InvokeAsync();
 
 // --- factory helpers ---
 static ILoggerFactory Logs() => LoggerFactory.Create(b => b.AddConsole());
