@@ -5,5 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-  <ProjectReference Include="..\OrasBackup.Core\OrasBackup.Core.csproj" />
+  <ItemGroup>
+    <ProjectReference Include="..\OrasBackup.Core\OrasBackup.Core.csproj" />
+  </ItemGroup>
 </Project>
