@@ -42,7 +42,7 @@ public abstract class IntegrationFixture : IDisposable
         Key = _encryptor.DeriveKey("test-password", salt);
 
         var lf = NullLoggerFactory.Instance;
-        var oras = new OrasClient(lf.CreateLogger<OrasClient>());
+        var oras = new OrasClient(lf.CreateLogger<OrasClient>(), plainHttp: true);
         BackupEngine = new BackupEngine(Tracker, _encryptor, oras, lf.CreateLogger<BackupEngine>());
         RestoreEngine = new RestoreEngine(_encryptor, oras, lf.CreateLogger<RestoreEngine>());
         CompactionEngine = new CompactionEngine(RestoreEngine, BackupEngine, lf.CreateLogger<CompactionEngine>());
@@ -100,7 +100,7 @@ public abstract class IntegrationFixture : IDisposable
         {
             try
             {
-                var psi = new ProcessStartInfo("oras", $"manifest delete {Registry}:{tag} --force")
+                var psi = new ProcessStartInfo("oras", $"manifest delete --plain-http {Registry}:{tag} --force")
                 {
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

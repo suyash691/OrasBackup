@@ -12,16 +12,19 @@ public sealed class OrasClient : IOrasClient
 {
     private readonly ILogger<OrasClient> _logger;
     private readonly string _orasBinary;
+    private readonly bool _plainHttp;
 
-    public OrasClient(ILogger<OrasClient> logger, string orasBinary = "oras")
+    public OrasClient(ILogger<OrasClient> logger, string orasBinary = "oras", bool plainHttp = false)
     {
         _logger = logger;
         _orasBinary = orasBinary;
+        _plainHttp = plainHttp;
     }
+
+    private string HttpFlag => _plainHttp ? " --plain-http" : "";
 
     public async Task PushAsync(string reference, IReadOnlyList<OrasLayer> layers, CancellationToken ct = default)
     {
-        // Write layers to temp files, push via oras push
         var tempDir = Path.Combine(Path.GetTempPath(), $"orasbackup-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
         try
@@ -35,8 +38,7 @@ public sealed class OrasClient : IOrasClient
                 fileArgs.Add($"{filePath}:{layers[i].MediaType}");
             }
 
-            var args = $"push {reference} {string.Join(' ', fileArgs)}";
-            await RunOrasAsync(args, ct);
+            await RunOrasAsync($"push --disable-path-validation{HttpFlag} {reference} {string.Join(' ', fileArgs)}", ct);
         }
         finally
         {
@@ -50,8 +52,7 @@ public sealed class OrasClient : IOrasClient
         Directory.CreateDirectory(tempDir);
         try
         {
-            await RunOrasAsync($"pull {reference} -o {tempDir}", ct);
-            // Find the pulled file — oras extracts layers as files
+            await RunOrasAsync($"pull{HttpFlag} {reference} -o {tempDir}", ct);
             var files = Directory.GetFiles(tempDir);
             if (files.Length == 0) throw new InvalidOperationException("No layers pulled");
             return await File.ReadAllBytesAsync(files[0], ct);
@@ -64,7 +65,7 @@ public sealed class OrasClient : IOrasClient
 
     public async Task<IReadOnlyList<OrasManifestEntry>> DiscoverAsync(string reference, CancellationToken ct = default)
     {
-        var json = await RunOrasAsync($"discover {reference} --output json", ct);
+        var json = await RunOrasAsync($"discover{HttpFlag} {reference} --output json", ct);
         using var doc = JsonDocument.Parse(json);
         var entries = new List<OrasManifestEntry>();
         if (doc.RootElement.TryGetProperty("manifests", out var manifests))
@@ -82,7 +83,7 @@ public sealed class OrasClient : IOrasClient
 
     public async Task<IReadOnlyList<string>> ListTagsAsync(string repository, CancellationToken ct = default)
     {
-        var output = await RunOrasAsync($"repo tags {repository}", ct);
+        var output = await RunOrasAsync($"repo tags{HttpFlag} {repository}", ct);
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
