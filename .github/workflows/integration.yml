@@ -11,10 +11,13 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
+      # Ephemeral registry — destroyed after job, no ballooning risk
       registry:
         image: registry:2
         ports:
           - 5000:5000
+        env:
+          REGISTRY_STORAGE_DELETE_ENABLED: "true"
 
     steps:
       - uses: actions/checkout@v4
@@ -48,3 +51,9 @@ jobs:
         env:
           ORAS_REGISTRY: localhost:5000
         run: dotnet test tests/OrasBackup.Integration.Tests --no-build --configuration Release --verbosity normal
+
+      - name: Registry stats
+        if: always()
+        run: |
+          echo "=== Registry catalog after tests ==="
+          curl -s http://localhost:5000/v2/_catalog | head -20

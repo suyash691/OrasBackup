@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "dotnet restore && docker run -d -p 5000:5000 --name registry registry:2 && curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz && tar -xzf oras_1.2.2_linux_amd64.tar.gz && sudo mv oras /usr/local/bin/ && rm oras_1.2.2_linux_amd64.tar.gz",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
   "forwardPorts": [5000],
   "customizations": {
     "vscode": {
