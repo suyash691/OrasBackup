@@ -127,7 +127,7 @@ public class RestoreEngineTests : IDisposable
         if (tarData is not null)
             layers.Add(new("application/vnd.orasbackup.layer.v1.tar+encrypted", $"sha256:data-{backupId}", tarData.Length));
 
-        _oras.DiscoverAsync(reference, Arg.Any<CancellationToken>()).Returns(layers);
+        _oras.FetchManifestLayersAsync(reference, Arg.Any<CancellationToken>()).Returns(layers);
         _oras.PullLayerAsync(reference, $"sha256:manifest-{backupId}", Arg.Any<CancellationToken>()).Returns(manifestBytes);
         if (tarData is not null)
             _oras.PullLayerAsync(reference, $"sha256:data-{backupId}", Arg.Any<CancellationToken>()).Returns(tarData);

@@ -74,7 +74,7 @@ public sealed class RestoreEngine
 
     private async Task<DeltaManifest> PullManifestAsync(string reference, RestoreOptions options, CancellationToken ct)
     {
-        var layers = await _oras.DiscoverAsync(reference, ct);
+        var layers = await _oras.FetchManifestLayersAsync(reference, ct);
         var manifestLayer = layers.FirstOrDefault(l => l.MediaType.Contains("manifest+json"))
             ?? throw new InvalidOperationException($"No manifest layer found in {reference}");
 
@@ -85,7 +85,7 @@ public sealed class RestoreEngine
 
     private async Task ExtractLayerAsync(string reference, RestoreOptions options, CancellationToken ct)
     {
-        var layers = await _oras.DiscoverAsync(reference, ct);
+        var layers = await _oras.FetchManifestLayersAsync(reference, ct);
         var dataLayer = layers.FirstOrDefault(l => l.MediaType.Contains("layer.v1.tar"));
         if (dataLayer is null) return; // No data layer (e.g., delete-only manifest)
 

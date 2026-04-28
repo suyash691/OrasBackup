@@ -48,34 +48,33 @@ public sealed class OrasClient : IOrasClient
 
     public async Task<byte[]> PullLayerAsync(string reference, string digest, CancellationToken ct = default)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"orasbackup-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        var tempFile = Path.Combine(Path.GetTempPath(), $"orasbackup-{Guid.NewGuid():N}.bin");
         try
         {
-            await RunOrasAsync($"pull{HttpFlag} {reference} -o {tempDir}", ct);
-            var files = Directory.GetFiles(tempDir);
-            if (files.Length == 0) throw new InvalidOperationException("No layers pulled");
-            return await File.ReadAllBytesAsync(files[0], ct);
+            // Extract repo from reference (strip tag)
+            var repo = reference.Contains(':') ? reference[..reference.LastIndexOf(':')] : reference;
+            await RunOrasAsync($"blob fetch{HttpFlag} --output {tempFile} {repo}@{digest}", ct);
+            return await File.ReadAllBytesAsync(tempFile, ct);
         }
         finally
         {
-            try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
+            try { File.Delete(tempFile); } catch { /* best effort */ }
         }
     }
 
-    public async Task<IReadOnlyList<OrasManifestEntry>> DiscoverAsync(string reference, CancellationToken ct = default)
+    public async Task<IReadOnlyList<OrasManifestEntry>> FetchManifestLayersAsync(string reference, CancellationToken ct = default)
     {
-        var json = await RunOrasAsync($"discover{HttpFlag} {reference} --output json", ct);
+        var json = await RunOrasAsync($"manifest fetch{HttpFlag} {reference}", ct);
         using var doc = JsonDocument.Parse(json);
         var entries = new List<OrasManifestEntry>();
-        if (doc.RootElement.TryGetProperty("manifests", out var manifests))
+        if (doc.RootElement.TryGetProperty("layers", out var layers))
         {
-            foreach (var m in manifests.EnumerateArray())
+            foreach (var l in layers.EnumerateArray())
             {
                 entries.Add(new OrasManifestEntry(
-                    m.GetProperty("mediaType").GetString() ?? "",
-                    m.GetProperty("digest").GetString() ?? "",
-                    m.GetProperty("size").GetInt64()));
+                    l.GetProperty("mediaType").GetString() ?? "",
+                    l.GetProperty("digest").GetString() ?? "",
+                    l.GetProperty("size").GetInt64()));
             }
         }
         return entries;
