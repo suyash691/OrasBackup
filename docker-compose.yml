@@ -1,0 +1,34 @@
+# Example: Backup NAS documents to an OCI registry every 6 hours
+#
+# Usage:
+#   1. Copy this file and .env.example to your NAS
+#   2. Edit .env with your registry and encryption settings
+#   3. docker compose up -d
+#
+# No Dockerfile changes needed — all config via environment variables or mounted profile JSON.
+
+services:
+  orasbackup:
+    build: .
+    # Or use a pre-built image:
+    # image: orasbackup:latest
+    container_name: orasbackup
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Mount your data (read-only)
+      - /volume1/documents:/data:ro
+      # Persistent config, state, and manifest cache
+      - orasbackup-config:/config
+      # Scratch space for temp files during backup (avoids in-memory tmpfs)
+      - orasbackup-scratch:/scratch
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  orasbackup-config:
+  orasbackup-scratch:

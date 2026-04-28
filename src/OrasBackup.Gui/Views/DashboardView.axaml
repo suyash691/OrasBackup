@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OrasBackup.Gui.ViewModels"
+             x:Class="OrasBackup.Gui.Views.DashboardView"
+             x:DataType="vm:DashboardViewModel">
+
+    <StackPanel Margin="8" Spacing="8">
+        <TextBlock Text="Backup Dashboard" FontWeight="Bold" FontSize="16" />
+
+        <TextBox Watermark="Profile name" Text="{Binding SelectedProfile}" />
+        <TextBox Watermark="Encryption password" Text="{Binding Password}" PasswordChar="•" />
+
+        <Button Content="Run Backup" Command="{Binding RunBackupCommand}" IsEnabled="{Binding !IsRunning}" HorizontalAlignment="Left" />
+
+        <ProgressBar IsIndeterminate="{Binding IsRunning}" IsVisible="{Binding IsRunning}" Margin="0,8" />
+
+        <Border Background="#20808080" CornerRadius="4" Padding="12" Margin="0,8">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{Binding Status, StringFormat='Status: {0}'}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding LastBackupInfo}" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

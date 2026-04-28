@@ -1,0 +1,9 @@
+.git
+tests/
+logs/
+.vs/
+.idea/
+.env
+.devcontainer/
+*.md
+!README.md

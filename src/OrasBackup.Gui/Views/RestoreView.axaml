@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OrasBackup.Gui.ViewModels"
+             x:Class="OrasBackup.Gui.Views.RestoreView"
+             x:DataType="vm:RestoreViewModel">
+
+    <StackPanel Margin="8" Spacing="8">
+        <TextBlock Text="Restore Wizard" FontWeight="Bold" FontSize="16" />
+
+        <!-- Step 1: Profile -->
+        <TextBox Watermark="Profile name" Text="{Binding SelectedProfile}" />
+        <TextBox Watermark="Encryption password" Text="{Binding Password}" PasswordChar="•" />
+        <Button Content="Load Backups" Command="{Binding LoadBackupsCommand}" HorizontalAlignment="Left" />
+
+        <!-- Step 2: Pick backup -->
+        <TextBlock Text="Select backup:" Margin="0,8,0,0" />
+        <ComboBox ItemsSource="{Binding BackupIds}" SelectedItem="{Binding SelectedBackupId}" MinWidth="300" />
+
+        <!-- Step 3: Target -->
+        <TextBox Watermark="Restore target directory" Text="{Binding TargetDir}" />
+
+        <!-- Step 4: Go -->
+        <Button Content="Restore" Command="{Binding RestoreCommand}" IsEnabled="{Binding !IsRunning}" HorizontalAlignment="Left" />
+
+        <ProgressBar IsIndeterminate="{Binding IsRunning}" IsVisible="{Binding IsRunning}" Margin="0,8" />
+        <TextBlock Text="{Binding Status}" FontWeight="SemiBold" />
+    </StackPanel>
+</UserControl>
