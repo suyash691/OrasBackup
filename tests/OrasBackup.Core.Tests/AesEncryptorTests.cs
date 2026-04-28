@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using OrasBackup.Core.Crypto;
+using Xunit;
 
 namespace OrasBackup.Core.Tests;
 

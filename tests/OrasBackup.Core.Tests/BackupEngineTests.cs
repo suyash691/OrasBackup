@@ -5,6 +5,7 @@ using OrasBackup.Core.Config;
 using OrasBackup.Core.Crypto;
 using OrasBackup.Core.Delta;
 using OrasBackup.Core.Oras;
+using Xunit;
 
 namespace OrasBackup.Core.Tests;
 
