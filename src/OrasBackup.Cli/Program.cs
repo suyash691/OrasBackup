@@ -122,6 +122,24 @@ root.AddCommand(restoreCmd);
 root.AddCommand(listCmd);
 root.AddCommand(daemonCmd);
 
+// --- compact ---
+var compactCmd = new Command("compact", "Compact the delta chain into a single full backup");
+compactCmd.AddOption(profileOpt);
+compactCmd.AddOption(passwordOpt);
+compactCmd.AddOption(keyFileOpt);
+compactCmd.SetHandler(async (profile, password, keyFile) =>
+{
+    var p = ProfileHelper.Load(profile);
+    var key = KeyHelper.Resolve(password, keyFile, p.Encryption);
+    var engine = BuildCompactionEngine();
+    var result = await engine.CompactAsync(p, key);
+    if (result.Success)
+        Console.WriteLine($"Compaction complete: new full backup {result.BackupId} ({result.FilesAdded} files, {result.Duration.TotalSeconds:F1}s)");
+    else
+        Console.Error.WriteLine($"Compaction failed: {result.Error}");
+}, profileOpt, passwordOpt, keyFileOpt);
+root.AddCommand(compactCmd);
+
 return await root.InvokeAsync(args);
 
 // --- factory helpers ---
@@ -140,3 +158,9 @@ static RestoreEngine BuildRestoreEngine()
 }
 
 static OrasClient BuildOrasClient() => new(Logs().CreateLogger<OrasClient>());
+
+static CompactionEngine BuildCompactionEngine()
+{
+    var lf = Logs();
+    return new CompactionEngine(BuildRestoreEngine(), BuildBackupEngine(), lf.CreateLogger<CompactionEngine>());
+}
