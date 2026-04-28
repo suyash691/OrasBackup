@@ -109,7 +109,8 @@ internal sealed class GlobMatcher
 
         // Consume trailing **
         while (pi < pattern.Length && pattern[pi] == "**") pi++;
-        return pi == pattern.Length && si == path.Length;
+        // Match if pattern is exhausted — remaining path segments are under a matched directory
+        return pi == pattern.Length;
     }
 
     private static bool SegmentMatch(string pattern, string segment)
