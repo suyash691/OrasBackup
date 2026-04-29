@@ -66,9 +66,7 @@ public static class AppCommands
                 var retention = svc.CreateRetentionEnforcer();
                 await retention.EnforceAsync(p.Registry, p.Retention, ct);
 
-                var chainLen = 0;
-                var m = engine.LastManifest;
-                while (m?.BasedOn != null) { chainLen++; m = previous?.BackupId == m.BasedOn ? previous : null; }
+                var chainLen = ChainCounter.Count(engine.LastManifest!, _ => previous);
                 if (retention.ShouldCompact(chainLen, p.Retention.CompactAfter))
                 {
                     Console.WriteLine("Chain length exceeded threshold, compacting...");
@@ -147,7 +145,8 @@ public static class AppCommands
 
             var engine = svc.CreateBackupEngine();
             var lf = LoggerFactory.Create(b => b.AddConsole());
-            using var scheduler = new BackupScheduler(engine, lf.CreateLogger<BackupScheduler>(), health);
+            var retention = svc.CreateRetentionEnforcer();
+            using var scheduler = new BackupScheduler(engine, lf.CreateLogger<BackupScheduler>(), health, retention);
 
             Console.WriteLine($"Daemon started: backing up '{profileName}' every {p.Schedule.IntervalMinutes}m. Press Ctrl+C to stop.");
             try { await scheduler.RunAsync(p, key, cts.Token); }
