@@ -33,10 +33,20 @@ public sealed class BackupEngine
 
         try
         {
-            // 1. Scan ALL source paths into one file list, then compute a single delta
+            // 1. Scan ALL source paths into one file list with namespaced paths
             var allCurrentFiles = new List<FileSnapshot>();
+            var multiSource = profile.SourcePaths.Count > 1;
             foreach (var source in profile.SourcePaths)
-                allCurrentFiles.AddRange(_delta.ScanDirectory(source, profile.ExcludePatterns));
+            {
+                var files = _delta.ScanDirectory(source, profile.ExcludePatterns);
+                if (multiSource)
+                {
+                    // Prefix with source dir name to prevent collisions
+                    var prefix = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, '/'));
+                    files = files.Select(f => f with { RelativePath = $"{prefix}/{f.RelativePath}" }).ToList();
+                }
+                allCurrentFiles.AddRange(files);
+            }
 
             var added = new List<FileSnapshot>();
             var modified = new List<FileSnapshot>();
@@ -121,6 +131,7 @@ public sealed class BackupEngine
     private static async Task<byte[]> CreateTarAsync(IReadOnlyList<string> sourcePaths, IReadOnlyList<FileSnapshot> files, CancellationToken ct)
     {
         if (files.Count == 0) return [];
+        var multiSource = sourcePaths.Count > 1;
 
         using var ms = new MemoryStream();
         await using (var tar = new TarWriter(ms, leaveOpen: true))
@@ -128,10 +139,31 @@ public sealed class BackupEngine
             foreach (var file in files)
             {
                 ct.ThrowIfCancellationRequested();
-                var fullPath = sourcePaths
-                    .Select(s => Path.Combine(s, file.RelativePath.Replace('/', Path.DirectorySeparatorChar)))
-                    .FirstOrDefault(File.Exists)
-                    ?? throw new FileNotFoundException($"File not found: {file.RelativePath}");
+                string? fullPath = null;
+
+                if (multiSource)
+                {
+                    // RelativePath is "prefix/actual/path" — match prefix to source dir name
+                    var firstSlash = file.RelativePath.IndexOf('/');
+                    if (firstSlash > 0)
+                    {
+                        var prefix = file.RelativePath[..firstSlash];
+                        var innerPath = file.RelativePath[(firstSlash + 1)..].Replace('/', Path.DirectorySeparatorChar);
+                        fullPath = sourcePaths
+                            .Where(s => Path.GetFileName(s.TrimEnd(Path.DirectorySeparatorChar, '/')) == prefix)
+                            .Select(s => Path.Combine(s, innerPath))
+                            .FirstOrDefault(File.Exists);
+                    }
+                }
+                else
+                {
+                    fullPath = sourcePaths
+                        .Select(s => Path.Combine(s, file.RelativePath.Replace('/', Path.DirectorySeparatorChar)))
+                        .FirstOrDefault(File.Exists);
+                }
+
+                if (fullPath is null)
+                    throw new FileNotFoundException($"File not found: {file.RelativePath}");
 
                 await tar.WriteEntryAsync(fullPath, file.RelativePath, ct);
             }

@@ -82,7 +82,6 @@ public class MultiSourceDeltaTests : IDisposable
     [Fact]
     public async Task MultiSource_IncrementalDoesNotSpuriouslyDeleteCrossPathFiles()
     {
-        // Setup: two source paths, each with one file
         File.WriteAllText(Path.Combine(_srcA, "a.txt"), "from A");
         File.WriteAllText(Path.Combine(_srcB, "b.txt"), "from B");
 
@@ -96,26 +95,41 @@ public class MultiSourceDeltaTests : IDisposable
 
         var engine = new BackupEngine(new DeltaTracker(), _encryptor, _oras, NullLogger<BackupEngine>.Instance);
 
-        // First backup (full)
         var first = await engine.RunBackupAsync(profile, new byte[32], null);
         Assert.True(first.Success);
         Assert.Equal(2, first.FilesAdded);
 
-        // Build previous manifest from the first backup's state
-        var tracker = new DeltaTracker();
-        var allFiles = new List<FileSnapshot>();
-        foreach (var src in profile.SourcePaths)
-            allFiles.AddRange(tracker.ScanDirectory(src, profile.ExcludePatterns));
-        var prevManifest = new DeltaManifest { BackupId = first.BackupId, Files = allFiles };
+        // Use the engine's LastManifest which has correctly prefixed paths
+        var prevManifest = engine.LastManifest!;
 
-        // Second backup — nothing changed
         var second = await engine.RunBackupAsync(profile, new byte[32], prevManifest);
         Assert.True(second.Success);
-
-        // BUG: without fix, files from srcB appear as "deleted" when scanning srcA
         Assert.Equal(0, second.FilesDeleted);
         Assert.Equal(0, second.FilesAdded);
         Assert.Equal(0, second.FilesModified);
         Assert.Equal(2, second.FilesUnchanged);
+    }
+
+    [Fact]
+    public async Task MultiSource_DuplicateRelativePaths_ThrowsOrPrefixes()
+    {
+        // Both source paths have a file with the same relative path
+        File.WriteAllText(Path.Combine(_srcA, "config.json"), "from A");
+        File.WriteAllText(Path.Combine(_srcB, "config.json"), "from B");
+
+        var profile = new BackupProfile
+        {
+            Name = "multi-dup",
+            SourcePaths = [_srcA, _srcB],
+            Registry = "registry.example.com/test",
+            Encryption = new EncryptionConfig { Enabled = false }
+        };
+
+        var engine = new BackupEngine(new DeltaTracker(), _encryptor, _oras, NullLogger<BackupEngine>.Instance);
+        var result = await engine.RunBackupAsync(profile, new byte[32], null);
+
+        // Should detect the collision — both files must be preserved, not silently overwritten
+        Assert.True(result.Success);
+        Assert.Equal(2, result.FilesAdded); // both files, not 1
     }
 }
