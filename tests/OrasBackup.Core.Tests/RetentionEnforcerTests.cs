@@ -54,14 +54,14 @@ public class RetentionEnforcerTests
     }
 
     [Fact]
-    public async Task CompactNeeded_ReturnsTrueWhenChainExceedsThreshold()
+    public void CompactNeeded_ReturnsTrueWhenChainExceedsThreshold()
     {
         var enforcer = new RetentionEnforcer(_oras);
         Assert.True(enforcer.ShouldCompact(chainLength: 11, compactAfter: 10));
     }
 
     [Fact]
-    public async Task CompactNeeded_ReturnsFalseWhenUnderThreshold()
+    public void CompactNeeded_ReturnsFalseWhenUnderThreshold()
     {
         var enforcer = new RetentionEnforcer(_oras);
         Assert.False(enforcer.ShouldCompact(chainLength: 5, compactAfter: 10));

@@ -3,16 +3,26 @@ using OrasBackup.Core.Config;
 
 namespace OrasBackup.Cli;
 
-internal static class ProfileHelper
+public interface IProfileStore
 {
-    private static readonly string ProfileDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".orasbackup", "profiles");
+    BackupProfile Load(string name);
+    void Save(BackupProfile profile);
+    string GetProfilePath(string name);
+    IEnumerable<string> ListProfiles();
+}
 
+public sealed class FileProfileStore : IProfileStore
+{
+    private readonly string _profileDir;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
-    public static string GetProfilePath(string name) => Path.Combine(ProfileDir, $"{name}.json");
+    public FileProfileStore(string? profileDir = null) =>
+        _profileDir = profileDir ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".orasbackup", "profiles");
 
-    public static BackupProfile Load(string name)
+    public string GetProfilePath(string name) => Path.Combine(_profileDir, $"{name}.json");
+
+    public BackupProfile Load(string name)
     {
         var path = GetProfilePath(name);
         if (!File.Exists(path))
@@ -22,17 +32,27 @@ internal static class ProfileHelper
             ?? throw new InvalidOperationException("Failed to deserialize profile");
     }
 
-    public static void Save(BackupProfile profile)
+    public void Save(BackupProfile profile)
     {
-        Directory.CreateDirectory(ProfileDir);
+        Directory.CreateDirectory(_profileDir);
         var path = GetProfilePath(profile.Name);
         File.WriteAllText(path, JsonSerializer.Serialize(profile, JsonOpts));
     }
 
-    public static IEnumerable<string> ListProfiles()
+    public IEnumerable<string> ListProfiles()
     {
-        if (!Directory.Exists(ProfileDir)) yield break;
-        foreach (var file in Directory.EnumerateFiles(ProfileDir, "*.json"))
+        if (!Directory.Exists(_profileDir)) yield break;
+        foreach (var file in Directory.EnumerateFiles(_profileDir, "*.json"))
             yield return Path.GetFileNameWithoutExtension(file);
     }
+}
+
+/// <summary>Kept for backward compatibility — delegates to FileProfileStore.</summary>
+internal static class ProfileHelper
+{
+    private static readonly FileProfileStore Store = new();
+    public static BackupProfile Load(string name) => Store.Load(name);
+    public static void Save(BackupProfile profile) => Store.Save(profile);
+    public static string GetProfilePath(string name) => Store.GetProfilePath(name);
+    public static IEnumerable<string> ListProfiles() => Store.ListProfiles();
 }
