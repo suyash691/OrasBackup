@@ -86,6 +86,11 @@ public sealed class OrasClient : IOrasClient
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
+    public async Task DeleteTagAsync(string repository, string tag, CancellationToken ct = default)
+    {
+        await RunOrasAsync($"manifest delete{HttpFlag} --force {repository}:{tag}", ct);
+    }
+
     private async Task<string> RunOrasAsync(string arguments, CancellationToken ct)
     {
         _logger.LogDebug("Running: {Binary} {Args}", _orasBinary, arguments);

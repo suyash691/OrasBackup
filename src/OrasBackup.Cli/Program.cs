@@ -43,6 +43,26 @@ backupCmd.SetAction(async (parseResult, ct) =>
     if (result.Success)
     {
         cache.Save(profile, engine.LastManifest!);
+
+        // Retention: prune old backups and auto-compact if chain is long
+        var retention = new RetentionEnforcer(BuildOrasClient());
+        await retention.EnforceAsync(p.Registry, p.Retention, ct);
+
+        // Count chain length from manifest
+        var chainLen = 0;
+        var m = engine.LastManifest;
+        while (m?.BasedOn != null) { chainLen++; m = previous?.BackupId == m.BasedOn ? previous : null; }
+        if (retention.ShouldCompact(chainLen, p.Retention.CompactAfter))
+        {
+            Console.WriteLine("Chain length exceeded threshold, compacting...");
+            var compacted = await BuildCompactionEngine().CompactAsync(p, key, ct);
+            if (compacted.Success)
+            {
+                cache.Save(profile, new Delta.DeltaManifest { BackupId = compacted.BackupId, Files = engine.LastManifest!.Files });
+                Console.WriteLine($"Auto-compacted to {compacted.BackupId}");
+            }
+        }
+
         Console.WriteLine($"Backup {result.BackupId} complete: +{result.FilesAdded} ~{result.FilesModified} -{result.FilesDeleted} ({result.Duration.TotalSeconds:F1}s)");
     }
     else

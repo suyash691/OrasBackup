@@ -10,4 +10,5 @@ public interface IOrasClient
     Task<byte[]> PullLayerAsync(string reference, string digest, CancellationToken ct = default);
     Task<IReadOnlyList<OrasManifestEntry>> FetchManifestLayersAsync(string reference, CancellationToken ct = default);
     Task<IReadOnlyList<string>> ListTagsAsync(string repository, CancellationToken ct = default);
+    Task DeleteTagAsync(string repository, string tag, CancellationToken ct = default);
 }
