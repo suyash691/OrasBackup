@@ -54,7 +54,11 @@ if [ ! -L "$CONFIG_DIR/.orasbackup/profiles/${PROFILE}.json" ] && [ -f "$PROFILE
 fi
 
 # Registry login if credentials provided
-if [ -n "$ORAS_USERNAME" ] && [ -n "$ORAS_PASSWORD" ]; then
+if [ -n "$ORAS_PAT" ]; then
+  # PAT auth (GitHub Container Registry, GitLab, etc.)
+  REGISTRY_HOST=$(echo "$ORASBACKUP_REGISTRY" | cut -d'/' -f1)
+  echo "$ORAS_PAT" | oras login "$REGISTRY_HOST" -u "${ORAS_USERNAME:-pat}" --password-stdin ${ORAS_INSECURE:+--insecure}
+elif [ -n "$ORAS_USERNAME" ] && [ -n "$ORAS_PASSWORD" ]; then
   REGISTRY_HOST=$(echo "$ORASBACKUP_REGISTRY" | cut -d'/' -f1)
   echo "$ORAS_PASSWORD" | oras login "$REGISTRY_HOST" -u "$ORAS_USERNAME" --password-stdin ${ORAS_INSECURE:+--insecure}
 fi
