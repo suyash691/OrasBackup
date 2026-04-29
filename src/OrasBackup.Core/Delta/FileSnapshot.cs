@@ -4,4 +4,5 @@ public sealed record FileSnapshot(
     string RelativePath,
     string Sha256,
     long SizeBytes,
-    DateTime LastModifiedUtc);
+    DateTime LastModifiedUtc,
+    int UnixMode = 0);

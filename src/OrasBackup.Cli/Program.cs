@@ -116,8 +116,12 @@ daemonCmd.SetAction(async (parseResult, ct) =>
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
+    using var health = new HealthServer();
+    try { health.Start(); Console.WriteLine("Health endpoint: http://0.0.0.0:8080/healthz"); }
+    catch { Console.WriteLine("Health endpoint unavailable (port 8080 in use or no permission)"); }
+
     var engine = BuildBackupEngine();
-    using var scheduler = new BackupScheduler(engine, LoggerFactory.Create(b => b.AddConsole()).CreateLogger<BackupScheduler>());
+    using var scheduler = new BackupScheduler(engine, LoggerFactory.Create(b => b.AddConsole()).CreateLogger<BackupScheduler>(), health);
 
     Console.WriteLine($"Daemon started: backing up '{profile}' every {p.Schedule.IntervalMinutes}m. Press Ctrl+C to stop.");
     try { await scheduler.RunAsync(p, key, cts.Token); }

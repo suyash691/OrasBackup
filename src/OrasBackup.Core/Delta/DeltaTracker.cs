@@ -60,7 +60,8 @@ public sealed class DeltaTracker
                 relative,
                 HashFile(file.FullName),
                 file.Length,
-                file.LastWriteTimeUtc));
+                file.LastWriteTimeUtc,
+                GetUnixMode(file.FullName)));
         }
 
         return snapshots;
@@ -71,6 +72,13 @@ public sealed class DeltaTracker
         using var stream = File.OpenRead(path);
         var hash = SHA256.HashData(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static int GetUnixMode(string path)
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS()) return 0;
+        try { return (int)File.GetUnixFileMode(path); }
+        catch { return 0; }
     }
 }
 

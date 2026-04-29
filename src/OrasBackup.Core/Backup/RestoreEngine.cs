@@ -53,6 +53,17 @@ public sealed class RestoreEngine
             // Pull and extract data layer
             await ExtractLayerAsync(reference, options, ct);
 
+            // Restore POSIX permissions on Linux/macOS
+            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            {
+                foreach (var file in manifest.Files.Where(f => f.UnixMode != 0))
+                {
+                    var path = Path.Combine(options.TargetDir, file.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                    if (File.Exists(path))
+                        File.SetUnixFileMode(path, (UnixFileMode)file.UnixMode);
+                }
+            }
+
             // Apply deletions
             foreach (var deleted in manifest.Deleted)
             {
