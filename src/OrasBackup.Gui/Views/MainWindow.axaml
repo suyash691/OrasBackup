@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OrasBackup.Gui.ViewModels"
+        xmlns:v="using:OrasBackup.Gui.Views"
+        x:Class="OrasBackup.Gui.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="OrasBackup" Width="800" Height="600"
+        WindowStartupLocation="CenterScreen">
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <TabControl Margin="8">
+        <TabItem Header="Profiles">
+            <v:ProfileManagerView DataContext="{Binding Profiles}" />
+        </TabItem>
+        <TabItem Header="Backup">
+            <v:DashboardView DataContext="{Binding Dashboard}" />
+        </TabItem>
+        <TabItem Header="Restore">
+            <v:RestoreView DataContext="{Binding Restore}" />
+        </TabItem>
+        <TabItem Header="Log">
+            <v:LogView DataContext="{Binding Log}" />
+        </TabItem>
+    </TabControl>
+</Window>

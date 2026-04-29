@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OrasBackup.Gui.ViewModels"
+             x:Class="OrasBackup.Gui.Views.LogView"
+             x:DataType="vm:LogViewModel">
+
+    <DockPanel Margin="8">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <TextBlock Text="Operation Log" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+            <Button Content="Clear" Command="{Binding ClearCommand}" />
+        </StackPanel>
+
+        <ListBox ItemsSource="{Binding Entries}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
+    </DockPanel>
+</UserControl>

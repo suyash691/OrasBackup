@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OrasBackup.Gui.ViewModels"
+             x:Class="OrasBackup.Gui.Views.ProfileManagerView"
+             x:DataType="vm:ProfileManagerViewModel">
+
+    <Grid RowDefinitions="Auto,*" Margin="8">
+        <!-- Create form -->
+        <StackPanel Grid.Row="0" Spacing="8">
+            <TextBlock Text="Create Profile" FontWeight="Bold" FontSize="16" />
+            <TextBox Watermark="Profile name" Text="{Binding NewName}" />
+            <TextBox Watermark="Source paths (comma-separated)" Text="{Binding NewSource}" />
+            <TextBox Watermark="Registry (e.g. registry.example.com/repo)" Text="{Binding NewRegistry}" />
+            <Button Content="Create" Command="{Binding CreateProfileCommand}" HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <!-- Profile list -->
+        <StackPanel Grid.Row="1" Spacing="8" Margin="0,16,0,0">
+            <TextBlock Text="Existing Profiles" FontWeight="Bold" FontSize="16" />
+            <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinHeight="150" />
+            <Button Content="Delete Selected" Command="{Binding DeleteProfileCommand}" HorizontalAlignment="Left" />
+        </StackPanel>
+    </Grid>
+</UserControl>

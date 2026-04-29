@@ -1,0 +1,69 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using OrasBackup.Cli;
+using OrasBackup.Core.Backup;
+using OrasBackup.Gui.Services;
+
+namespace OrasBackup.Gui.ViewModels;
+
+public partial class RestoreViewModel : ObservableObject
+{
+    private readonly IServiceFactory _svc;
+    private readonly LogService _log;
+
+    [ObservableProperty] private string _selectedProfile = "";
+    [ObservableProperty] private string _password = "";
+    [ObservableProperty] private string _targetDir = "";
+    [ObservableProperty] private string? _selectedBackupId;
+    [ObservableProperty] private string _status = "Ready";
+    [ObservableProperty] private bool _isRunning;
+
+    public ObservableCollection<string> BackupIds { get; } = [];
+
+    public RestoreViewModel(IServiceFactory svc, LogService log)
+    {
+        _svc = svc;
+        _log = log;
+    }
+
+    [RelayCommand]
+    private async Task LoadBackupsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedProfile)) return;
+        try
+        {
+            var profile = _svc.CreateProfileStore().Load(SelectedProfile);
+            var tags = await _svc.CreateOrasClient().ListTagsAsync(profile.Registry);
+            BackupIds.Clear();
+            BackupIds.Add("(latest)");
+            foreach (var tag in tags.Where(t => t != "latest"))
+                BackupIds.Add(tag);
+        }
+        catch (Exception ex) { _log.Log($"Failed to list backups: {ex.Message}"); }
+    }
+
+    [RelayCommand]
+    private async Task RestoreAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedProfile) || string.IsNullOrWhiteSpace(TargetDir)) return;
+        IsRunning = true;
+        Status = "Restoring...";
+        try
+        {
+            var profile = _svc.CreateProfileStore().Load(SelectedProfile);
+            var key = _svc.ResolveKey(Password, null, profile.Encryption);
+            var backupId = SelectedBackupId == "(latest)" ? null : SelectedBackupId;
+            var opts = new RestoreOptions(profile.Registry, backupId, TargetDir, key, profile.Encryption.Enabled);
+            await _svc.CreateRestoreEngine().RestoreAsync(opts);
+            Status = $"Restored to {TargetDir}";
+            _log.Log($"Restore complete to {TargetDir}");
+        }
+        catch (Exception ex)
+        {
+            Status = $"Failed: {ex.Message}";
+            _log.Log($"Restore failed: {ex.Message}");
+        }
+        finally { IsRunning = false; }
+    }
+}
