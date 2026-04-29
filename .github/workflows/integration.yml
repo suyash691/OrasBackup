@@ -9,6 +9,8 @@ on:
 jobs:
   integration-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     services:
       # Ephemeral registry — destroyed after job, no ballooning risk
