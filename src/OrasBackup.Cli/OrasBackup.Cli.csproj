@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>orasbackup</AssemblyName>
+    <InternalsVisibleTo Include="OrasBackup.Core.Tests" />
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.7" />
