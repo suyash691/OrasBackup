@@ -7,10 +7,10 @@ using OrasBackup.Core.Oras;
 
 namespace OrasBackup.Core.Backup;
 
-public sealed class BackupEngine
+public sealed class BackupEngine : IBackupEngine
 {
-    private readonly DeltaTracker _delta;
-    private readonly ChunkEngine _chunkEngine;
+    private readonly IDeltaTracker _delta;
+    private readonly IChunkEngine _chunkEngine;
     private readonly IOrasClient _oras;
     private readonly IEncryptor _encryptor;
     private readonly ILogger<BackupEngine> _logger;
@@ -19,7 +19,7 @@ public sealed class BackupEngine
     public BackupIndex? LastIndex { get; private set; }
     public IReadOnlyList<FileSnapshot>? LastSnapshots { get; private set; }
 
-    public BackupEngine(DeltaTracker delta, ChunkEngine chunkEngine, IOrasClient oras,
+    public BackupEngine(IDeltaTracker delta, IChunkEngine chunkEngine, IOrasClient oras,
         IEncryptor encryptor, ILogger<BackupEngine> logger, DirectoryChunker? chunker = null)
     {
         _delta = delta;

@@ -5,7 +5,7 @@ using OrasBackup.Core.Oras;
 
 namespace OrasBackup.Core.Backup;
 
-public sealed class RestoreEngine
+public sealed class RestoreEngine : IRestoreEngine
 {
     private readonly IOrasClient _oras;
     private readonly IEncryptor _encryptor;

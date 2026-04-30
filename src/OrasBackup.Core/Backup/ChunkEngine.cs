@@ -10,7 +10,7 @@ namespace OrasBackup.Core.Backup;
 /// Pushes a FileChunk as an OCI image: layer 0 = ChunkManifest, layer 1+ = files.
 /// Memory usage = one encryption chunk (64MB) regardless of file size.
 /// </summary>
-public sealed class ChunkEngine
+public sealed class ChunkEngine : IChunkEngine
 {
     private readonly IOrasClient _oras;
     private readonly IEncryptor _encryptor;

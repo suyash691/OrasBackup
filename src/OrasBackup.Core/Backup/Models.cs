@@ -1,7 +1,41 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using OrasBackup.Core.Config;
+using OrasBackup.Core.Delta;
+
 namespace OrasBackup.Core.Backup;
+
+public interface IBackupEngine
+{
+    BackupIndex? LastIndex { get; }
+    Task<BackupResult> RunBackupAsync(BackupProfile profile, byte[] encryptionKey, BackupIndex? previous, CancellationToken ct = default);
+}
+
+public interface IRestoreEngine
+{
+    Task RestoreAsync(string registry, string? backupId, string targetDir,
+        byte[] encryptionKey, bool encrypted, CancellationToken ct = default);
+}
+
+public interface IChunkEngine
+{
+    Task<ChunkRef> PushChunkAsync(string registry, FileChunk chunk, IReadOnlyList<string> sourcePaths,
+        byte[] encryptionKey, bool encrypt, CancellationToken ct = default);
+}
+
+public interface IDeltaTracker
+{
+    List<FileSnapshot> ScanDirectory(string sourceDir, IReadOnlyList<string> excludePatterns,
+        IReadOnlyList<FileSnapshot>? previousSnapshots = null);
+}
+
+public interface IBackupIndexCache
+{
+    void Save(string profileName, BackupIndex index);
+    BackupIndex? Load(string profileName);
+    void Delete(string profileName);
+}
 
 /// <summary>Root index pushed as the backup's main OCI image. Points to chunk images.</summary>
 public sealed class BackupIndex

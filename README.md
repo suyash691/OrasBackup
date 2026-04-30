@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/suyash691/OrasBackup/actions/workflows/ci.yml/badge.svg)](https://github.com/suyash691/OrasBackup/actions/workflows/ci.yml)
 [![Integration Tests](https://github.com/suyash691/OrasBackup/actions/workflows/integration.yml/badge.svg)](https://github.com/suyash691/OrasBackup/actions/workflows/integration.yml)
+[![Release](https://github.com/suyash691/OrasBackup/actions/workflows/release.yml/badge.svg)](https://github.com/suyash691/OrasBackup/actions/workflows/release.yml)
 [![codecov](https://codecov.io/gh/suyash691/OrasBackup/branch/main/graph/badge.svg?token=ZNH0JE6OPS)](https://codecov.io/gh/suyash691/OrasBackup)
 
 Encrypted incremental backups to any OCI registry. No cloud vendor lock-in — works with GHCR, Docker Hub, self-hosted registries, whatever speaks OCI.

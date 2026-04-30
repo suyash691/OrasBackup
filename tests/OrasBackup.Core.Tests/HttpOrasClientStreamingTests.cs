@@ -103,4 +103,27 @@ public class HttpOrasClientStreamingTests : IDisposable
         Assert.Equal(HttpMethod.Put, lastReq.Method);
         Assert.Contains("/manifests/tag", lastReq.RequestUri!.ToString());
     }
+
+    [Fact]
+    public async Task UploadBlobFromFileAsync_RetriesOn503()
+    {
+        var file = Path.Combine(_tempDir, "retry.bin");
+        File.WriteAllText(file, "retry data");
+
+        _handler.Enqueue(new HttpResponseMessage(HttpStatusCode.NotFound)); // HEAD → not found
+        // First attempt: POST → 202, PUT → 503
+        _handler.Enqueue(new HttpResponseMessage(HttpStatusCode.Accepted)
+            { Headers = { Location = new Uri("/v2/repo/blobs/uploads/u1?s=x", UriKind.Relative) } });
+        _handler.Enqueue(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        // Retry: POST → 202, PUT → 201
+        _handler.Enqueue(new HttpResponseMessage(HttpStatusCode.Accepted)
+            { Headers = { Location = new Uri("/v2/repo/blobs/uploads/u2?s=x", UriKind.Relative) } });
+        _handler.Enqueue(new HttpResponseMessage(HttpStatusCode.Created));
+
+        var result = await _sut.UploadBlobFromFileAsync("repo", file, "app/test");
+
+        Assert.StartsWith("sha256:", result.Digest);
+        // Should have: HEAD + POST + PUT(fail) + POST + PUT(success) = 5 requests
+        Assert.Equal(5, _handler.Requests.Count);
+    }
 }

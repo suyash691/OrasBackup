@@ -4,7 +4,7 @@ namespace OrasBackup.Core.Backup;
 /// Persists BackupIndex to local disk between backup runs, enabling chunk-level deduplication.
 /// Index is stored as-is (file paths are not sensitive — the actual file content is encrypted in the registry).
 /// </summary>
-public sealed class BackupIndexCache
+public sealed class BackupIndexCache : IBackupIndexCache
 {
     private readonly string _cacheDir;
 

@@ -105,15 +105,55 @@ public class ChunkEngineTests : IDisposable
     {
         var filePath = Path.Combine(_srcDir, "changing.txt");
         File.WriteAllText(filePath, "original");
-        var originalHash = "stale-hash-from-scan"; // simulate stale hash from scan
+        var originalHash = "stale-hash-from-scan";
 
         var files = new List<FileSnapshot> { new("changing.txt", originalHash, 8, DateTime.UtcNow) };
         var chunk = new FileChunk("test", files);
 
         var result = await _sut.PushChunkAsync("reg/repo", chunk, [_srcDir], new byte[32], false);
 
-        // Should succeed — re-hashes the file and uses the correct hash
         Assert.NotNull(result);
         Assert.StartsWith("chunk-", result.Tag);
+    }
+
+    [Fact]
+    public async Task PushChunk_MultiSource_FindsCorrectFile()
+    {
+        var src2 = Path.Combine(Path.GetTempPath(), $"chunk-src2-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(src2);
+        try
+        {
+            File.WriteAllText(Path.Combine(src2, "b.txt"), "from src2");
+
+            var files = new List<FileSnapshot> { new("b.txt", "hash-b", 9, DateTime.UtcNow) };
+            var chunk = new FileChunk("test", files);
+
+            // Single source that contains the file
+            var result = await _sut.PushChunkAsync("reg/repo", chunk, [src2], new byte[32], false);
+            Assert.NotNull(result);
+        }
+        finally { try { Directory.Delete(src2, true); } catch { } }
+    }
+
+    [Fact]
+    public async Task PushChunk_MultiSource_WithPrefix_FindsCorrectFile()
+    {
+        // Simulate multi-source with prefixed relative paths
+        var src1 = _srcDir;
+        var src2 = Path.Combine(Path.GetTempPath(), $"chunk-src2-{Guid.NewGuid():N}");
+        var src2Name = Path.GetFileName(src2);
+        Directory.CreateDirectory(src2);
+        try
+        {
+            File.WriteAllText(Path.Combine(src2, "data.txt"), "from src2");
+
+            // Multi-source: relative path has prefix "src2Name/data.txt"
+            var files = new List<FileSnapshot> { new($"{src2Name}/data.txt", "hash", 9, DateTime.UtcNow) };
+            var chunk = new FileChunk("test", files);
+
+            var result = await _sut.PushChunkAsync("reg/repo", chunk, [src1, src2], new byte[32], false);
+            Assert.NotNull(result);
+        }
+        finally { try { Directory.Delete(src2, true); } catch { } }
     }
 }

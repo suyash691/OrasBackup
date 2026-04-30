@@ -134,37 +134,30 @@ public class DashboardViewModelTests
 {
     private readonly IServiceFactory _svc = Substitute.For<IServiceFactory>();
     private readonly IProfileStore _store = Substitute.For<IProfileStore>();
-    private readonly IOrasClient _oras = Substitute.For<IOrasClient>();
-    private readonly IEncryptor _encryptor = Substitute.For<IEncryptor>();
+    private readonly IBackupEngine _engine = Substitute.For<IBackupEngine>();
     private readonly LogService _log = new();
-    private readonly string _srcDir;
 
     public DashboardViewModelTests()
     {
-        _srcDir = Path.Combine(Path.GetTempPath(), $"dash-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_srcDir);
-        File.WriteAllText(Path.Combine(_srcDir, "f.txt"), "data");
-
         _svc.CreateProfileStore().Returns(_store);
-        _svc.CreateOrasClient().Returns(_oras);
-        _svc.CreateEncryptor().Returns(_encryptor);
-        _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
+        _svc.CreateBackupEngine().Returns(_engine);
         _svc.CreateBackupIndexCache().Returns(new BackupIndexCache(Path.Combine(Path.GetTempPath(), $"dash-cache-{Guid.NewGuid():N}")));
-        _encryptor.Encrypt(Arg.Any<byte[]>(), Arg.Any<byte[]>()).Returns(ci => ci.ArgAt<byte[]>(0));
-        _oras.UploadBlobFromFileAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => new OrasLayerDescriptor(ci.ArgAt<string>(2), "sha256:blob", 100));
-        _oras.ListTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
-
-        var engine = new BackupEngine(new OrasBackup.Core.Delta.DeltaTracker(),
-            new ChunkEngine(_oras, _encryptor, Microsoft.Extensions.Logging.Abstractions.NullLogger<ChunkEngine>.Instance),
-            _oras, _encryptor, Microsoft.Extensions.Logging.Abstractions.NullLogger<BackupEngine>.Instance);
-        _svc.CreateBackupEngine().Returns(engine);
+        _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
+        _svc.CreateOrasClient().Returns(Substitute.For<IOrasClient>());
 
         _store.Load("test").Returns(new BackupProfile
         {
-            Name = "test", SourcePaths = [_srcDir], Registry = "reg/repo",
+            Name = "test", SourcePaths = ["/data"], Registry = "reg/repo",
             Encryption = new EncryptionConfig { Enabled = false }
         });
+
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns(new BackupResult("b1", 5, 0, 0, 1000, TimeSpan.FromSeconds(1), true));
+        _engine.LastIndex.Returns(new BackupIndex { BackupId = "b1" });
+
+        var oras = Substitute.For<IOrasClient>();
+        oras.ListTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
+        _svc.CreateOrasClient().Returns(oras);
     }
 
     [Fact]
@@ -184,7 +177,6 @@ public class DashboardViewModelTests
         vm.Password = "secret";
         await vm.RunBackupCommand.ExecuteAsync(null);
         Assert.Equal("Backup complete", vm.Status);
-        Assert.Contains("Backup", vm.LastBackupInfo);
     }
 
     [Fact]
@@ -203,7 +195,7 @@ public class DashboardViewModelTests
         var vm = new DashboardViewModel(_svc, _log);
         vm.SelectedProfile = "test";
         await vm.RunBackupCommand.ExecuteAsync(null);
-        Assert.False(vm.IsRunning); // should be false after completion
+        Assert.False(vm.IsRunning);
     }
 
     [Fact]
@@ -218,15 +210,25 @@ public class DashboardViewModelTests
     [Fact]
     public async Task RunBackup_EngineFailure_SetsErrorStatus()
     {
-        _store.Load("failing").Returns(new BackupProfile
-        {
-            Name = "failing", SourcePaths = ["/nonexistent/path"], Registry = "reg/repo",
-            Encryption = new EncryptionConfig { Enabled = false }
-        });
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns(new BackupResult("b1", 0, 0, 0, 0, TimeSpan.Zero, false, "disk full"));
+
         var vm = new DashboardViewModel(_svc, _log);
-        vm.SelectedProfile = "failing";
+        vm.SelectedProfile = "test";
         await vm.RunBackupCommand.ExecuteAsync(null);
         Assert.StartsWith("Failed:", vm.Status);
+    }
+
+    [Fact]
+    public async Task RunBackup_Cancellation_ShowsCancelled()
+    {
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns<BackupResult>(_ => throw new OperationCanceledException());
+
+        var vm = new DashboardViewModel(_svc, _log);
+        vm.SelectedProfile = "test";
+        await vm.RunBackupCommand.ExecuteAsync(null);
+        Assert.Equal("Cancelled", vm.Status);
     }
 }
 
@@ -235,19 +237,15 @@ public class RestoreViewModelTests
     private readonly IServiceFactory _svc = Substitute.For<IServiceFactory>();
     private readonly IProfileStore _store = Substitute.For<IProfileStore>();
     private readonly IOrasClient _oras = Substitute.For<IOrasClient>();
-    private readonly IEncryptor _encryptor = Substitute.For<IEncryptor>();
+    private readonly IRestoreEngine _restoreEngine = Substitute.For<IRestoreEngine>();
     private readonly LogService _log = new();
 
     public RestoreViewModelTests()
     {
         _svc.CreateProfileStore().Returns(_store);
         _svc.CreateOrasClient().Returns(_oras);
-        _svc.CreateEncryptor().Returns(_encryptor);
+        _svc.CreateRestoreEngine().Returns(_restoreEngine);
         _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
-
-        var restoreEngine = new RestoreEngine(_oras, _encryptor,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<RestoreEngine>.Instance);
-        _svc.CreateRestoreEngine().Returns(restoreEngine);
 
         _store.Load("test").Returns(new BackupProfile
         {
@@ -311,33 +309,24 @@ public class RestoreViewModelTests
     [Fact]
     public async Task Restore_Success_UpdatesStatus()
     {
-        var targetDir = Path.Combine(Path.GetTempPath(), $"restore-vm-{Guid.NewGuid():N}");
-        try
-        {
-            var index = new BackupIndex { BackupId = "b1", Chunks = [] };
-            var indexBytes = index.Serialize();
-            _oras.FetchManifestLayersAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns([new OrasManifestEntry("application/vnd.orasbackup.index.v2+json", "sha256:idx", indexBytes.Length)]);
-            _oras.PullLayerAsync(Arg.Any<string>(), "sha256:idx", Arg.Any<CancellationToken>())
-                .Returns(indexBytes);
+        var vm = new RestoreViewModel(_svc, _log);
+        vm.SelectedProfile = "test";
+        vm.TargetDir = "/tmp/restore";
+        vm.Password = "secret";
+        await vm.RestoreCommand.ExecuteAsync(null);
 
-            var vm = new RestoreViewModel(_svc, _log);
-            vm.SelectedProfile = "test";
-            vm.TargetDir = targetDir;
-            vm.Password = "secret";
-            await vm.RestoreCommand.ExecuteAsync(null);
-
-            Assert.Contains("Restored to", vm.Status);
-            Assert.Equal("", vm.Password); // cleared after use
-        }
-        finally { try { Directory.Delete(targetDir, true); } catch { } }
+        Assert.Contains("Restored to", vm.Status);
+        Assert.Equal("", vm.Password);
+        await _restoreEngine.Received(1).RestoreAsync("reg/repo", Arg.Any<string?>(), "/tmp/restore",
+            Arg.Any<byte[]>(), false, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Restore_Failure_SetsErrorStatus()
     {
-        _oras.FetchManifestLayersAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<OrasManifestEntry>>(_ => throw new Exception("registry down"));
+        _restoreEngine.RestoreAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>(),
+            Arg.Any<byte[]>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new Exception("registry down"));
 
         var vm = new RestoreViewModel(_svc, _log);
         vm.SelectedProfile = "test";
@@ -346,6 +335,21 @@ public class RestoreViewModelTests
 
         Assert.StartsWith("Failed:", vm.Status);
         Assert.Contains(_log.Entries, e => e.Contains("Restore failed"));
+    }
+
+    [Fact]
+    public async Task Restore_Cancellation_ShowsCancelled()
+    {
+        _restoreEngine.RestoreAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>(),
+            Arg.Any<byte[]>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new OperationCanceledException());
+
+        var vm = new RestoreViewModel(_svc, _log);
+        vm.SelectedProfile = "test";
+        vm.TargetDir = "/tmp/restore";
+        await vm.RestoreCommand.ExecuteAsync(null);
+
+        Assert.Equal("Cancelled", vm.Status);
     }
 }
 

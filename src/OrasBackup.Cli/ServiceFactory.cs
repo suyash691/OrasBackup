@@ -10,10 +10,10 @@ public interface IServiceFactory
 {
     IOrasClient CreateOrasClient();
     IEncryptor CreateEncryptor();
-    BackupEngine CreateBackupEngine();
-    RestoreEngine CreateRestoreEngine();
-    ChunkEngine CreateChunkEngine();
-    BackupIndexCache CreateBackupIndexCache();
+    IBackupEngine CreateBackupEngine();
+    IRestoreEngine CreateRestoreEngine();
+    IChunkEngine CreateChunkEngine();
+    IBackupIndexCache CreateBackupIndexCache();
     IProfileStore CreateProfileStore();
     byte[] ResolveKey(string? password, string? keyFile, Core.Config.EncryptionConfig config);
     ILogger<T> CreateLogger<T>();
@@ -51,18 +51,18 @@ public class DefaultServiceFactory : IServiceFactory
 
     public virtual IOrasClient CreateOrasClient() => _orasClient.Value;
     public virtual IEncryptor CreateEncryptor() => _encryptor.Value;
-    public virtual BackupIndexCache CreateBackupIndexCache() => new();
+    public virtual IBackupIndexCache CreateBackupIndexCache() => new BackupIndexCache();
     public virtual IProfileStore CreateProfileStore() => new FileProfileStore();
 
-    public virtual ChunkEngine CreateChunkEngine() =>
-        new(CreateOrasClient(), CreateEncryptor(), _loggerFactory.Value.CreateLogger<ChunkEngine>());
+    public virtual IChunkEngine CreateChunkEngine() =>
+        new ChunkEngine(CreateOrasClient(), CreateEncryptor(), _loggerFactory.Value.CreateLogger<ChunkEngine>());
 
-    public virtual BackupEngine CreateBackupEngine() =>
-        new(new DeltaTracker(), CreateChunkEngine(), CreateOrasClient(),
+    public virtual IBackupEngine CreateBackupEngine() =>
+        new BackupEngine(new DeltaTracker(), CreateChunkEngine(), CreateOrasClient(),
             CreateEncryptor(), _loggerFactory.Value.CreateLogger<BackupEngine>());
 
-    public virtual RestoreEngine CreateRestoreEngine() =>
-        new(CreateOrasClient(), CreateEncryptor(), _loggerFactory.Value.CreateLogger<RestoreEngine>());
+    public virtual IRestoreEngine CreateRestoreEngine() =>
+        new RestoreEngine(CreateOrasClient(), CreateEncryptor(), _loggerFactory.Value.CreateLogger<RestoreEngine>());
 
     public virtual byte[] ResolveKey(string? password, string? keyFile, Core.Config.EncryptionConfig config) =>
         KeyHelper.Resolve(password, keyFile, config);

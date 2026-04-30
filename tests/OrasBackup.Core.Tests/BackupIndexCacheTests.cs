@@ -32,4 +32,28 @@ public class BackupIndexCacheTests : IDisposable
         File.WriteAllText(Path.Combine(_cacheDir, "corrupt.index.json"), "not json");
         Assert.Null(_sut.Load("corrupt"));
     }
+
+    [Fact]
+    public void Delete_RemovesCachedFile()
+    {
+        var index = new BackupIndex { BackupId = "del-test" };
+        _sut.Save("todelete", index);
+        Assert.NotNull(_sut.Load("todelete"));
+        _sut.Delete("todelete");
+        Assert.Null(_sut.Load("todelete"));
+    }
+
+    [Fact]
+    public void Delete_NonexistentProfile_DoesNotThrow()
+    {
+        _sut.Delete("nonexistent"); // should not throw
+    }
+
+    [Fact]
+    public void InvalidProfileName_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => _sut.Load("../../evil"));
+        Assert.Throws<ArgumentException>(() => _sut.Save("../../evil", new BackupIndex()));
+        Assert.Throws<ArgumentException>(() => _sut.Delete("../../evil"));
+    }
 }

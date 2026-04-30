@@ -93,7 +93,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: OrasBackup ${{ steps.version.outputs.tag }}
@@ -107,7 +107,7 @@ jobs:
 
       - name: Login to GHCR
         if: steps.check_tag.outputs.exists == 'false'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -119,7 +119,7 @@ jobs:
 
       - name: Build and push Docker image
         if: steps.check_tag.outputs.exists == 'false'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true

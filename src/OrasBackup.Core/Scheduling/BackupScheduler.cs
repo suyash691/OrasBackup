@@ -6,15 +6,15 @@ namespace OrasBackup.Core.Scheduling;
 
 public sealed class BackupScheduler : IDisposable
 {
-    private readonly BackupEngine _engine;
+    private readonly IBackupEngine _engine;
     private readonly ILogger<BackupScheduler> _logger;
     private readonly HealthServer? _health;
-    private readonly BackupIndexCache? _cache;
+    private readonly IBackupIndexCache? _cache;
     private readonly Func<BackupProfile, byte[], CancellationToken, Task>? _retentionRunner;
     private PeriodicTimer? _timer;
 
-    public BackupScheduler(BackupEngine engine, ILogger<BackupScheduler> logger,
-        HealthServer? health = null, BackupIndexCache? cache = null,
+    public BackupScheduler(IBackupEngine engine, ILogger<BackupScheduler> logger,
+        HealthServer? health = null, IBackupIndexCache? cache = null,
         Func<BackupProfile, byte[], CancellationToken, Task>? retentionRunner = null)
     {
         _engine = engine;

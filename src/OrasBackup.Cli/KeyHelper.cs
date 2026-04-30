@@ -15,7 +15,8 @@ namespace OrasBackup.Cli;
 /// </summary>
 internal static class KeyHelper
 {
-    public static byte[] Resolve(string? password, string? keyFile, EncryptionConfig config)
+    public static byte[] Resolve(string? password, string? keyFile, EncryptionConfig config,
+        Func<string>? passwordPrompt = null)
     {
         if (!config.Enabled)
             // Safe: all encryption call sites (BackupEngine, ChunkEngine, RestoreEngine) guard on
@@ -36,8 +37,7 @@ internal static class KeyHelper
         password ??= Environment.GetEnvironmentVariable("ORASBACKUP_PASSWORD");
         if (string.IsNullOrEmpty(password))
         {
-            Console.Write("Encryption password: ");
-            password = ReadPasswordMasked();
+            password = (passwordPrompt ?? ReadPasswordMasked)();
             if (string.IsNullOrEmpty(password))
                 throw new InvalidOperationException("Password is required when encryption is enabled");
         }

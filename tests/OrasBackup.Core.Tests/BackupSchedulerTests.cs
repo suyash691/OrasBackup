@@ -2,107 +2,108 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OrasBackup.Core.Backup;
 using OrasBackup.Core.Config;
-using OrasBackup.Core.Crypto;
-using OrasBackup.Core.Delta;
-using OrasBackup.Core.Oras;
 using OrasBackup.Core.Scheduling;
 using Xunit;
 
 namespace OrasBackup.Core.Tests;
 
-public class BackupSchedulerTests : IDisposable
+public class BackupSchedulerTests
 {
-    private readonly string _srcDir = Path.Combine(Path.GetTempPath(), $"sched-test-{Guid.NewGuid():N}");
+    private readonly IBackupEngine _engine = Substitute.For<IBackupEngine>();
+    private readonly IBackupIndexCache _cache = Substitute.For<IBackupIndexCache>();
 
-    public BackupSchedulerTests() { Directory.CreateDirectory(_srcDir); File.WriteAllText(Path.Combine(_srcDir, "f.txt"), "x"); }
-    public void Dispose() { try { Directory.Delete(_srcDir, true); } catch { } }
+    private readonly BackupProfile _profile = new()
+    {
+        Name = "test", SourcePaths = ["/data"], Registry = "reg/repo",
+        Schedule = new ScheduleConfig { IntervalMinutes = 1 },
+        Encryption = new EncryptionConfig { Enabled = false }
+    };
+
+    public BackupSchedulerTests()
+    {
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns(new BackupResult("b1", 1, 0, 0, 100, TimeSpan.FromSeconds(1), true));
+        _engine.LastIndex.Returns(new BackupIndex { BackupId = "b1" });
+    }
 
     [Fact]
-    public async Task RunOnce_Success_SetsLastIndex()
+    public async Task RunOnce_SetsLastIndex()
     {
-        var oras = Substitute.For<IOrasClient>();
-        var encryptor = Substitute.For<IEncryptor>();
-        encryptor.Encrypt(Arg.Any<byte[]>(), Arg.Any<byte[]>()).Returns(ci => ci.ArgAt<byte[]>(0));
-        oras.UploadBlobFromFileAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => new OrasLayerDescriptor(ci.ArgAt<string>(2), "sha256:blob", 100));
-        var engine = new BackupEngine(new DeltaTracker(), new ChunkEngine(oras, encryptor, NullLogger<ChunkEngine>.Instance),
-            oras, encryptor, NullLogger<BackupEngine>.Instance);
-
-        using var scheduler = new BackupScheduler(engine, NullLogger<BackupScheduler>.Instance);
-
-        var profile = new BackupProfile
-        {
-            Name = "test",
-            SourcePaths = [_srcDir],
-            Registry = "reg/repo",
-            Schedule = new ScheduleConfig { IntervalMinutes = 1 },
-            Encryption = new EncryptionConfig { Enabled = false }
-        };
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try { await scheduler.RunAsync(profile, new byte[32], cts.Token); }
+        using var scheduler = new BackupScheduler(_engine, NullLogger<BackupScheduler>.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await scheduler.RunAsync(_profile, new byte[32], cts.Token); }
         catch (OperationCanceledException) { }
 
-        Assert.NotNull(engine.LastIndex);
+        await _engine.Received().RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunOnce_SavesIndexToCache()
     {
-        var oras = Substitute.For<IOrasClient>();
-        var encryptor = Substitute.For<IEncryptor>();
-        encryptor.Encrypt(Arg.Any<byte[]>(), Arg.Any<byte[]>()).Returns(ci => ci.ArgAt<byte[]>(0));
-        oras.UploadBlobFromFileAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => new OrasLayerDescriptor(ci.ArgAt<string>(2), "sha256:blob", 100));
-        var engine = new BackupEngine(new DeltaTracker(), new ChunkEngine(oras, encryptor, NullLogger<ChunkEngine>.Instance),
-            oras, encryptor, NullLogger<BackupEngine>.Instance);
-
-        var cacheDir = Path.Combine(Path.GetTempPath(), $"sched-cache-{Guid.NewGuid():N}");
-        var cache = new BackupIndexCache(cacheDir);
-
-        using var scheduler = new BackupScheduler(engine, NullLogger<BackupScheduler>.Instance, cache: cache);
-
-        var profile = new BackupProfile
-        {
-            Name = "cachetest", SourcePaths = [_srcDir], Registry = "reg/repo",
-            Schedule = new ScheduleConfig { IntervalMinutes = 1 },
-            Encryption = new EncryptionConfig { Enabled = false }
-        };
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try { await scheduler.RunAsync(profile, new byte[32], cts.Token); }
+        using var scheduler = new BackupScheduler(_engine, NullLogger<BackupScheduler>.Instance, cache: _cache);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await scheduler.RunAsync(_profile, new byte[32], cts.Token); }
         catch (OperationCanceledException) { }
 
-        Assert.NotNull(cache.Load("cachetest"));
-        try { Directory.Delete(cacheDir, true); } catch { }
+        _cache.Received().Save("test", Arg.Any<BackupIndex>());
     }
 
     [Fact]
     public async Task RunOnce_InvokesRetentionRunner()
     {
-        var oras = Substitute.For<IOrasClient>();
-        var encryptor = Substitute.For<IEncryptor>();
-        encryptor.Encrypt(Arg.Any<byte[]>(), Arg.Any<byte[]>()).Returns(ci => ci.ArgAt<byte[]>(0));
-        oras.UploadBlobFromFileAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => new OrasLayerDescriptor(ci.ArgAt<string>(2), "sha256:blob", 100));
-        var engine = new BackupEngine(new DeltaTracker(), new ChunkEngine(oras, encryptor, NullLogger<ChunkEngine>.Instance),
-            oras, encryptor, NullLogger<BackupEngine>.Instance);
-
         var retentionCalled = false;
-        using var scheduler = new BackupScheduler(engine, NullLogger<BackupScheduler>.Instance,
+        using var scheduler = new BackupScheduler(_engine, NullLogger<BackupScheduler>.Instance,
             retentionRunner: (_, _, _) => { retentionCalled = true; return Task.CompletedTask; });
-
-        var profile = new BackupProfile
-        {
-            Name = "rettest", SourcePaths = [_srcDir], Registry = "reg/repo",
-            Schedule = new ScheduleConfig { IntervalMinutes = 1 },
-            Encryption = new EncryptionConfig { Enabled = false }
-        };
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try { await scheduler.RunAsync(profile, new byte[32], cts.Token); }
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await scheduler.RunAsync(_profile, new byte[32], cts.Token); }
         catch (OperationCanceledException) { }
 
         Assert.True(retentionCalled);
+    }
+
+    [Fact]
+    public async Task RunOnce_LoadsCachedIndex()
+    {
+        var cached = new BackupIndex { BackupId = "cached" };
+        _cache.Load("test").Returns(cached);
+
+        using var scheduler = new BackupScheduler(_engine, NullLogger<BackupScheduler>.Instance, cache: _cache);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await scheduler.RunAsync(_profile, new byte[32], cts.Token); }
+        catch (OperationCanceledException) { }
+
+        // First RunBackupAsync call should receive the cached index
+        await _engine.Received().RunBackupAsync(_profile, Arg.Any<byte[]>(), cached, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_EngineFailure_DoesNotCrash()
+    {
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns(new BackupResult("b1", 0, 0, 0, 0, TimeSpan.Zero, false, "disk full"));
+
+        using var scheduler = new BackupScheduler(_engine, NullLogger<BackupScheduler>.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await scheduler.RunAsync(_profile, new byte[32], cts.Token); }
+        catch (OperationCanceledException) { }
+
+        // Should not save to cache on failure
+        _cache.DidNotReceive().Save(Arg.Any<string>(), Arg.Any<BackupIndex>());
+    }
+
+    [Fact]
+    public async Task RunOnce_EngineThrows_ContinuesRunning()
+    {
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns<BackupResult>(_ => throw new IOException("disk error"));
+
+        using var scheduler = new BackupScheduler(_engine, NullLogger<BackupScheduler>.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await scheduler.RunAsync(_profile, new byte[32], cts.Token); }
+        catch (OperationCanceledException) { }
+
+        // Should have attempted at least once without crashing
+        await _engine.Received().RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(),
+            Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>());
     }
 }

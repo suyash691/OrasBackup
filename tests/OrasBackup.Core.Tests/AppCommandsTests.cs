@@ -3,7 +3,6 @@ using NSubstitute;
 using OrasBackup.Cli;
 using OrasBackup.Core.Backup;
 using OrasBackup.Core.Config;
-using OrasBackup.Core.Crypto;
 using OrasBackup.Core.Oras;
 using OrasBackup.Core.Scheduling;
 using Xunit;
@@ -15,37 +14,27 @@ public class AppCommandsTests
     private readonly RootCommand _root;
     private readonly IServiceFactory _svc = Substitute.For<IServiceFactory>();
     private readonly IProfileStore _store = Substitute.For<IProfileStore>();
+    private readonly IBackupEngine _engine = Substitute.For<IBackupEngine>();
+    private readonly IRestoreEngine _restoreEngine = Substitute.For<IRestoreEngine>();
     private readonly IOrasClient _oras = Substitute.For<IOrasClient>();
-    private readonly IEncryptor _encryptor = Substitute.For<IEncryptor>();
-    private readonly BackupEngine _engine;
-    private readonly RestoreEngine _restoreEngine;
 
     public AppCommandsTests()
     {
         _svc.CreateProfileStore().Returns(_store);
         _svc.CreateOrasClient().Returns(_oras);
-        _svc.CreateEncryptor().Returns(_encryptor);
-        _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
-        _svc.CreateBackupIndexCache().Returns(new BackupIndexCache(Path.Combine(Path.GetTempPath(), $"cmd-test-{Guid.NewGuid():N}")));
-        _encryptor.Encrypt(Arg.Any<byte[]>(), Arg.Any<byte[]>()).Returns(ci => ci.ArgAt<byte[]>(0));
-        _oras.UploadBlobFromFileAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => new OrasLayerDescriptor(ci.ArgAt<string>(2), "sha256:blob", 100));
-        _oras.ListTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
-
-        _engine = new BackupEngine(new Delta.DeltaTracker(),
-            new ChunkEngine(_oras, _encryptor, Microsoft.Extensions.Logging.Abstractions.NullLogger<ChunkEngine>.Instance),
-            _oras, _encryptor, Microsoft.Extensions.Logging.Abstractions.NullLogger<BackupEngine>.Instance);
-        _restoreEngine = new RestoreEngine(_oras, _encryptor,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<RestoreEngine>.Instance);
-
         _svc.CreateBackupEngine().Returns(_engine);
         _svc.CreateRestoreEngine().Returns(_restoreEngine);
+        _svc.CreateBackupIndexCache().Returns(Substitute.For<IBackupIndexCache>());
+        _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
         _svc.CreateLogger<BackupScheduler>().Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<BackupScheduler>.Instance);
+        _oras.ListTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
+
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns(new BackupResult("b1", 1, 0, 0, 100, TimeSpan.FromSeconds(1), true));
+        _engine.LastIndex.Returns(new BackupIndex { BackupId = "b1" });
 
         _root = AppCommands.Build(_svc);
     }
-
-    // --- Structure tests ---
 
     [Fact]
     public void Build_HasAllSubcommands()
@@ -60,16 +49,8 @@ public class AppCommandsTests
     }
 
     [Fact]
-    public void Parse_BackupMissingProfile_HasError()
-    {
+    public void Parse_BackupMissingProfile_HasError() =>
         Assert.NotEmpty(_root.Parse("backup").Errors);
-    }
-
-    [Fact]
-    public void Parse_BackupWithProfile_NoError()
-    {
-        Assert.Empty(_root.Parse("backup --profile myprof --password secret").Errors);
-    }
 
     [Fact]
     public void Restore_RequiresProfileAndTarget()
@@ -79,8 +60,6 @@ public class AppCommandsTests
         Assert.Contains("--profile", required);
         Assert.Contains("--target", required);
     }
-
-    // --- Execution tests ---
 
     [Fact]
     public async Task Init_CreatesProfile()
@@ -92,50 +71,31 @@ public class AppCommandsTests
     [Fact]
     public async Task Backup_ExecutesEngine()
     {
-        var srcDir = Path.Combine(Path.GetTempPath(), $"cmd-backup-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(srcDir);
-        File.WriteAllText(Path.Combine(srcDir, "f.txt"), "data");
-        try
+        _store.Load("myprof").Returns(new BackupProfile
         {
-            _store.Load("myprof").Returns(new BackupProfile
-            {
-                Name = "myprof", SourcePaths = [srcDir], Registry = "reg/repo",
-                Encryption = new EncryptionConfig { Enabled = false }
-            });
+            Name = "myprof", SourcePaths = ["/data"], Registry = "reg/repo",
+            Encryption = new EncryptionConfig { Enabled = false }
+        });
 
-            await _root.Parse("backup --profile myprof --password test").InvokeAsync();
+        await _root.Parse("backup --profile myprof --password test").InvokeAsync();
 
-            // Engine should have pushed something
-            await _oras.Received().PushManifestAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<OrasLayer>>(),
-                Arg.Any<IReadOnlyList<OrasLayerDescriptor>>(), Arg.Any<CancellationToken>());
-        }
-        finally { try { Directory.Delete(srcDir, true); } catch { } }
+        await _engine.Received().RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(),
+            Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Restore_ExecutesEngine()
     {
-        var targetDir = Path.Combine(Path.GetTempPath(), $"cmd-restore-{Guid.NewGuid():N}");
-        try
+        _store.Load("myprof").Returns(new BackupProfile
         {
-            _store.Load("myprof").Returns(new BackupProfile
-            {
-                Name = "myprof", Registry = "reg/repo",
-                Encryption = new EncryptionConfig { Enabled = false }
-            });
+            Name = "myprof", Registry = "reg/repo",
+            Encryption = new EncryptionConfig { Enabled = false }
+        });
 
-            var index = new BackupIndex { BackupId = "b1", Chunks = [] };
-            var indexBytes = index.Serialize();
-            _oras.FetchManifestLayersAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns([new OrasManifestEntry("application/vnd.orasbackup.index.v2+json", "sha256:idx", indexBytes.Length)]);
-            _oras.PullLayerAsync(Arg.Any<string>(), "sha256:idx", Arg.Any<CancellationToken>())
-                .Returns(indexBytes);
+        await _root.Parse("restore --profile myprof --target /tmp/out --password test").InvokeAsync();
 
-            await _root.Parse($"restore --profile myprof --target {targetDir} --password test").InvokeAsync();
-
-            Assert.True(Directory.Exists(targetDir));
-        }
-        finally { try { Directory.Delete(targetDir, true); } catch { } }
+        await _restoreEngine.Received().RestoreAsync("reg/repo", Arg.Any<string?>(), "/tmp/out",
+            Arg.Any<byte[]>(), false, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -151,9 +111,7 @@ public class AppCommandsTests
     {
         _store.Load("myprof").Returns(new BackupProfile { Name = "myprof", Registry = "reg/repo" });
         _oras.ListTagsAsync("reg/repo", Arg.Any<CancellationToken>()).Returns(new[] { "v1", "v2" });
-
         await _root.Parse("list --profile myprof").InvokeAsync();
-
         await _oras.Received().ListTagsAsync("reg/repo", Arg.Any<CancellationToken>());
     }
 }

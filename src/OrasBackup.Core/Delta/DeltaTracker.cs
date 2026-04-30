@@ -1,8 +1,9 @@
 using System.Security.Cryptography;
+using OrasBackup.Core.Backup;
 
 namespace OrasBackup.Core.Delta;
 
-public sealed class DeltaTracker
+public sealed class DeltaTracker : IDeltaTracker
 {
     public List<FileSnapshot> ScanDirectory(string sourceDir, IReadOnlyList<string> excludePatterns,
         IReadOnlyList<FileSnapshot>? previousSnapshots = null)

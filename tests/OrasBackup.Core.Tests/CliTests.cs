@@ -68,6 +68,13 @@ public class FileProfileStoreTests : IDisposable
         var path = _sut.GetProfilePath("test");
         Assert.EndsWith("test.json", path);
     }
+
+    [Fact]
+    public void InvalidProfileName_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => _sut.GetProfilePath("../../evil"));
+        Assert.Throws<ArgumentException>(() => _sut.Load("../hack"));
+    }
 }
 
 public class KeyHelperTests
@@ -127,5 +134,24 @@ public class KeyHelperTests
     {
         var key = KeyHelper.Resolve("my-password", null, new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "argtest" });
         Assert.Equal(32, key.Length);
+    }
+
+    [Fact]
+    public void Resolve_PromptReturnsPassword_DerivesKey()
+    {
+        var key = KeyHelper.Resolve(null, null,
+            new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "prompttest" },
+            passwordPrompt: () => "prompted-password");
+        Assert.Equal(32, key.Length);
+        Assert.NotEqual(new byte[32], key);
+    }
+
+    [Fact]
+    public void Resolve_PromptReturnsEmpty_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            KeyHelper.Resolve(null, null,
+                new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "emptytest" },
+                passwordPrompt: () => ""));
     }
 }

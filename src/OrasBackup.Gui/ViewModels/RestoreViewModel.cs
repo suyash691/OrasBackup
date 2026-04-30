@@ -58,6 +58,11 @@ public partial class RestoreViewModel : ObservableObject
             Status = $"Restored to {TargetDir}";
             _log.Log($"Restore complete to {TargetDir}");
         }
+        catch (OperationCanceledException)
+        {
+            Status = "Cancelled";
+            _log.Log("Restore cancelled");
+        }
         catch (Exception ex)
         {
             Status = $"Failed: {ex.Message}";
