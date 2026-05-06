@@ -6,6 +6,7 @@ public sealed class BackupProfile
     public List<string> SourcePaths { get; set; } = [];
     public List<string> ExcludePatterns { get; set; } = ["**/.git", "**/node_modules", "**/bin", "**/obj"];
     public string Registry { get; set; } = "";
+    public string? AuthToken { get; set; }
     public ScheduleConfig Schedule { get; set; } = new();
     public EncryptionConfig Encryption { get; set; } = new();
     public RetentionConfig Retention { get; set; } = new();

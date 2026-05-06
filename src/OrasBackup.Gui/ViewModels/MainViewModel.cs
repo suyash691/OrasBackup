@@ -16,8 +16,8 @@ public partial class MainViewModel : ObservableObject
         var svc = new DefaultServiceFactory();
         var log = new LogService(action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         Profiles = new ProfileManagerViewModel(svc, log);
-        Dashboard = new DashboardViewModel(svc, log);
-        Restore = new RestoreViewModel(svc, log);
+        Dashboard = new DashboardViewModel(svc, log, Profiles.Profiles);
+        Restore = new RestoreViewModel(svc, log, Profiles.Profiles);
         Log = new LogViewModel(log);
     }
 }

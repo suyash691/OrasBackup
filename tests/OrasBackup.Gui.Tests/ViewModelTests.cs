@@ -36,9 +36,9 @@ public class ProfileManagerViewModelTests
     {
         _store.ListProfiles().Returns(new[] { "existing" }, new[] { "existing", "newprof" });
         var vm = new ProfileManagerViewModel(_svc, _log);
-        vm.NewName = "newprof";
-        vm.NewSource = "/data";
-        vm.NewRegistry = "reg.io/repo";
+        vm.EditName = "newprof";
+        vm.EditSource = "/data";
+        vm.EditRegistry = "reg.io/repo";
         vm.CreateProfileCommand.Execute(null);
         _store.Received(1).Save(Arg.Is<BackupProfile>(p => p.Name == "newprof"));
     }
@@ -47,8 +47,8 @@ public class ProfileManagerViewModelTests
     public void CreateProfile_EmptyName_DoesNothing()
     {
         var vm = new ProfileManagerViewModel(_svc, _log);
-        vm.NewName = "";
-        vm.NewRegistry = "reg.io/repo";
+        vm.EditName = "";
+        vm.EditRegistry = "reg.io/repo";
         vm.CreateProfileCommand.Execute(null);
         _store.DidNotReceive().Save(Arg.Any<BackupProfile>());
     }
@@ -57,8 +57,8 @@ public class ProfileManagerViewModelTests
     public void CreateProfile_EmptyRegistry_DoesNothing()
     {
         var vm = new ProfileManagerViewModel(_svc, _log);
-        vm.NewName = "test";
-        vm.NewRegistry = "";
+        vm.EditName = "test";
+        vm.EditRegistry = "";
         vm.CreateProfileCommand.Execute(null);
         _store.DidNotReceive().Save(Arg.Any<BackupProfile>());
     }
@@ -68,13 +68,13 @@ public class ProfileManagerViewModelTests
     {
         _store.ListProfiles().Returns(new[] { "existing" }, new[] { "existing", "new" });
         var vm = new ProfileManagerViewModel(_svc, _log);
-        vm.NewName = "new";
-        vm.NewSource = "/data";
-        vm.NewRegistry = "reg.io/repo";
+        vm.EditName = "new";
+        vm.EditSource = "/data";
+        vm.EditRegistry = "reg.io/repo";
         vm.CreateProfileCommand.Execute(null);
-        Assert.Equal("", vm.NewName);
-        Assert.Equal("", vm.NewSource);
-        Assert.Equal("", vm.NewRegistry);
+        Assert.Equal("", vm.EditName);
+        Assert.Equal("", vm.EditSource);
+        Assert.Equal("", vm.EditRegistry);
     }
 
     [Fact]
@@ -82,9 +82,9 @@ public class ProfileManagerViewModelTests
     {
         _store.ListProfiles().Returns(new[] { "existing" }, new[] { "existing", "logged" });
         var vm = new ProfileManagerViewModel(_svc, _log);
-        vm.NewName = "logged";
-        vm.NewSource = "/data";
-        vm.NewRegistry = "reg.io/repo";
+        vm.EditName = "logged";
+        vm.EditSource = "/data";
+        vm.EditRegistry = "reg.io/repo";
         vm.CreateProfileCommand.Execute(null);
         Assert.Contains(_log.Entries, e => e.Contains("logged") && e.Contains("created"));
     }
@@ -94,9 +94,9 @@ public class ProfileManagerViewModelTests
     {
         _store.ListProfiles().Returns(new[] { "existing" }, new[] { "existing", "multi" });
         var vm = new ProfileManagerViewModel(_svc, _log);
-        vm.NewName = "multi";
-        vm.NewSource = "/data, /photos, /videos";
-        vm.NewRegistry = "reg.io/repo";
+        vm.EditName = "multi";
+        vm.EditSource = "/data, /photos, /videos";
+        vm.EditRegistry = "reg.io/repo";
         vm.CreateProfileCommand.Execute(null);
         _store.Received(1).Save(Arg.Is<BackupProfile>(p => p.SourcePaths.Count == 3));
     }

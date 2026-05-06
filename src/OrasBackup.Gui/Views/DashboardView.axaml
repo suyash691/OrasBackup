@@ -7,7 +7,7 @@
     <StackPanel Margin="8" Spacing="8">
         <TextBlock Text="Backup Dashboard" FontWeight="Bold" FontSize="16" />
 
-        <TextBox Watermark="Profile name" Text="{Binding SelectedProfile}" />
+        <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinWidth="300" PlaceholderText="Select profile" />
         <TextBox Watermark="Encryption password" Text="{Binding Password}" PasswordChar="•" />
 
         <Button Content="Run Backup" Command="{Binding RunBackupCommand}" IsEnabled="{Binding !IsRunning}" HorizontalAlignment="Left" />

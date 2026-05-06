@@ -64,7 +64,7 @@ public class HeadlessUiTests
 
         var buttons = window.GetVisualDescendants().OfType<Button>().Select(b => b.Content?.ToString()).ToList();
         Assert.Contains("Create", buttons);
-        Assert.Contains("Delete Selected", buttons);
+        Assert.Contains("Delete", buttons);
     }
 
     [AvaloniaFact]

@@ -10,12 +10,12 @@ namespace OrasBackup.Core.Tests;
 public class DefaultServiceFactoryTests
 {
     [Fact]
-    public void CreateOrasClient_ReturnsSingleton()
+    public void CreateOrasClient_ReturnsNewInstancePerCall()
     {
         var svc = new DefaultServiceFactory();
         var a = svc.CreateOrasClient();
         var b = svc.CreateOrasClient();
-        Assert.Same(a, b);
+        Assert.NotSame(a, b); // new client per profile/call
     }
 
     [Fact]

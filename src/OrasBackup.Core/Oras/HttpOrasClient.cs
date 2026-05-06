@@ -11,12 +11,14 @@ public sealed class HttpOrasClient : IOrasClient
     private readonly HttpClient _http;
     private readonly ILogger<HttpOrasClient> _logger;
 
-    public HttpOrasClient(HttpClient http, ILogger<HttpOrasClient> logger)
+    public HttpOrasClient(HttpClient http, ILogger<HttpOrasClient> logger, string? authToken = null)
     {
         _http = http;
         _logger = logger;
 
-        var pat = Environment.GetEnvironmentVariable("ORAS_PAT");
+        // Explicit token takes priority, then env vars as fallback (CLI/Docker)
+        var pat = authToken
+            ?? Environment.GetEnvironmentVariable("ORAS_PAT");
         var username = Environment.GetEnvironmentVariable("ORAS_USERNAME");
         var password = Environment.GetEnvironmentVariable("ORAS_PASSWORD");
         if (!string.IsNullOrEmpty(pat))

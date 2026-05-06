@@ -19,11 +19,13 @@ public partial class RestoreViewModel : ObservableObject
     [ObservableProperty] private bool _isRunning;
 
     public ObservableCollection<string> BackupIds { get; } = [];
+    public ObservableCollection<string> Profiles { get; }
 
-    public RestoreViewModel(IServiceFactory svc, LogService log)
+    public RestoreViewModel(IServiceFactory svc, LogService log, ObservableCollection<string>? profiles = null)
     {
         _svc = svc;
         _log = log;
+        Profiles = profiles ?? [];
     }
 
     [RelayCommand]
@@ -33,7 +35,7 @@ public partial class RestoreViewModel : ObservableObject
         try
         {
             var profile = _svc.CreateProfileStore().Load(SelectedProfile);
-            var tags = await _svc.CreateOrasClient().ListTagsAsync(profile.Registry);
+            var tags = await _svc.CreateOrasClient(profile.AuthToken).ListTagsAsync(profile.Registry);
             BackupIds.Clear();
             BackupIds.Add("(latest)");
             foreach (var tag in tags.Where(t => t != "latest" && !t.StartsWith("chunk-")).OrderDescending())
@@ -53,7 +55,7 @@ public partial class RestoreViewModel : ObservableObject
             var profile = _svc.CreateProfileStore().Load(SelectedProfile);
             var key = _svc.ResolveKey(Password, null, profile.Encryption);
             var backupId = SelectedBackupId == "(latest)" ? null : SelectedBackupId;
-            await _svc.CreateRestoreEngine().RestoreAsync(
+            await _svc.CreateRestoreEngine(profile.AuthToken).RestoreAsync(
                 profile.Registry, backupId, TargetDir, key, profile.Encryption.Enabled, ct);
             Status = $"Restored to {TargetDir}";
             _log.Log($"Restore complete to {TargetDir}");

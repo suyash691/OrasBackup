@@ -8,7 +8,7 @@
         <TextBlock Text="Restore Wizard" FontWeight="Bold" FontSize="16" />
 
         <!-- Step 1: Profile -->
-        <TextBox Watermark="Profile name" Text="{Binding SelectedProfile}" />
+        <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinWidth="300" PlaceholderText="Select profile" />
         <TextBox Watermark="Encryption password" Text="{Binding Password}" PasswordChar="•" />
         <Button Content="Load Backups" Command="{Binding LoadBackupsCommand}" HorizontalAlignment="Left" />
 

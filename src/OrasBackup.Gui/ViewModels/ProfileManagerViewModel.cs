@@ -12,10 +12,14 @@ public partial class ProfileManagerViewModel : ObservableObject
     private readonly IServiceFactory _svc;
     private readonly LogService _log;
 
-    [ObservableProperty] private string _newName = "";
-    [ObservableProperty] private string _newSource = "";
-    [ObservableProperty] private string _newRegistry = "";
+    [ObservableProperty] private string _editName = "";
+    [ObservableProperty] private string _editSource = "";
+    [ObservableProperty] private string _editRegistry = "";
+    [ObservableProperty] private string _editAuthToken = "";
+    [ObservableProperty] private bool _editEncryption = true;
+    [ObservableProperty] private int _editMaxBackups = 50;
     [ObservableProperty] private string? _selectedProfile;
+    [ObservableProperty] private bool _isEditing;
 
     public ObservableCollection<string> Profiles { get; } = [];
 
@@ -26,19 +30,39 @@ public partial class ProfileManagerViewModel : ObservableObject
         RefreshProfiles();
     }
 
+    partial void OnSelectedProfileChanged(string? value)
+    {
+        if (value == null) { IsEditing = false; return; }
+        try
+        {
+            var profile = _svc.CreateProfileStore().Load(value);
+            EditName = profile.Name;
+            EditSource = string.Join(", ", profile.SourcePaths);
+            EditRegistry = profile.Registry;
+            EditAuthToken = profile.AuthToken ?? "";
+            EditEncryption = profile.Encryption.Enabled;
+            EditMaxBackups = profile.Retention.MaxBackups;
+            IsEditing = true;
+        }
+        catch { IsEditing = false; }
+    }
+
     [RelayCommand]
     private void CreateProfile()
     {
-        if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewRegistry)) return;
-        var profile = new BackupProfile
-        {
-            Name = NewName,
-            SourcePaths = NewSource.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-            Registry = NewRegistry
-        };
-        _svc.CreateProfileStore().Save(profile);
-        _log.Log($"Profile '{NewName}' created");
-        NewName = ""; NewSource = ""; NewRegistry = "";
+        if (string.IsNullOrWhiteSpace(EditName) || string.IsNullOrWhiteSpace(EditRegistry)) return;
+        SaveCurrentProfile();
+        _log.Log($"Profile '{EditName}' created");
+        ClearForm();
+        RefreshProfiles();
+    }
+
+    [RelayCommand]
+    private void SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(EditName) || string.IsNullOrWhiteSpace(EditRegistry)) return;
+        SaveCurrentProfile();
+        _log.Log($"Profile '{EditName}' saved");
         RefreshProfiles();
     }
 
@@ -53,11 +77,39 @@ public partial class ProfileManagerViewModel : ObservableObject
             _log.Log($"Deleting profile '{SelectedProfile}' at {path}");
             File.Delete(path);
         }
-        // Clean up cached index to prevent stale data if profile is recreated
         var cache = _svc.CreateBackupIndexCache();
         try { cache.Delete(SelectedProfile); } catch { }
         _log.Log($"Profile '{SelectedProfile}' deleted");
+        ClearForm();
         RefreshProfiles();
+    }
+
+    [RelayCommand]
+    private void NewProfile()
+    {
+        SelectedProfile = null;
+        ClearForm();
+        IsEditing = false;
+    }
+
+    private void SaveCurrentProfile()
+    {
+        var profile = new BackupProfile
+        {
+            Name = EditName,
+            SourcePaths = EditSource.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            Registry = EditRegistry,
+            AuthToken = string.IsNullOrWhiteSpace(EditAuthToken) ? null : EditAuthToken,
+            Encryption = new EncryptionConfig { Enabled = EditEncryption },
+            Retention = new RetentionConfig { MaxBackups = EditMaxBackups }
+        };
+        _svc.CreateProfileStore().Save(profile);
+    }
+
+    private void ClearForm()
+    {
+        EditName = ""; EditSource = ""; EditRegistry = ""; EditAuthToken = "";
+        EditEncryption = true; EditMaxBackups = 50;
     }
 
     private void RefreshProfiles()

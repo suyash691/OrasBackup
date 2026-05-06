@@ -4,21 +4,34 @@
              x:Class="OrasBackup.Gui.Views.ProfileManagerView"
              x:DataType="vm:ProfileManagerViewModel">
 
-    <Grid RowDefinitions="Auto,*" Margin="8">
-        <!-- Create form -->
-        <StackPanel Grid.Row="0" Spacing="8">
-            <TextBlock Text="Create Profile" FontWeight="Bold" FontSize="16" />
-            <TextBox Watermark="Profile name" Text="{Binding NewName}" />
-            <TextBox Watermark="Source paths (comma-separated)" Text="{Binding NewSource}" />
-            <TextBox Watermark="Registry (e.g. registry.example.com/repo)" Text="{Binding NewRegistry}" />
-            <Button Content="Create" Command="{Binding CreateProfileCommand}" HorizontalAlignment="Left" />
+    <Grid ColumnDefinitions="*,*" Margin="8">
+        <!-- Left: Profile list -->
+        <StackPanel Grid.Column="0" Spacing="8" Margin="0,0,8,0">
+            <TextBlock Text="Profiles" FontWeight="Bold" FontSize="16" />
+            <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinHeight="200" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="New" Command="{Binding NewProfileCommand}" />
+                <Button Content="Delete" Command="{Binding DeleteProfileCommand}" />
+            </StackPanel>
         </StackPanel>
 
-        <!-- Profile list -->
-        <StackPanel Grid.Row="1" Spacing="8" Margin="0,16,0,0">
-            <TextBlock Text="Existing Profiles" FontWeight="Bold" FontSize="16" />
-            <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinHeight="150" />
-            <Button Content="Delete Selected" Command="{Binding DeleteProfileCommand}" HorizontalAlignment="Left" />
+        <!-- Right: Edit form -->
+        <StackPanel Grid.Column="1" Spacing="8" Margin="8,0,0,0">
+            <TextBlock Text="{Binding IsEditing, StringFormat='{}Edit Profile'}"
+                       FontWeight="Bold" FontSize="16" />
+            <TextBox PlaceholderText="Profile name" Text="{Binding EditName}" />
+            <TextBox PlaceholderText="Source paths (comma-separated)" Text="{Binding EditSource}" />
+            <TextBox PlaceholderText="Registry (e.g. ghcr.io/user/backups)" Text="{Binding EditRegistry}" />
+            <TextBox PlaceholderText="Auth token (PAT for GHCR, optional)" Text="{Binding EditAuthToken}" PasswordChar="•" />
+            <CheckBox Content="Encryption enabled" IsChecked="{Binding EditEncryption}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Max backups:" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding EditMaxBackups}" Minimum="1" Maximum="1000" Width="100" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                <Button Content="Create" Command="{Binding CreateProfileCommand}" IsVisible="{Binding !IsEditing}" />
+                <Button Content="Save" Command="{Binding SaveProfileCommand}" IsVisible="{Binding IsEditing}" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

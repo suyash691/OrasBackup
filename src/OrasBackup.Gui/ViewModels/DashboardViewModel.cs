@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OrasBackup.Cli;
@@ -16,10 +17,13 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private string _lastBackupInfo = "No backups yet";
     [ObservableProperty] private bool _isRunning;
 
-    public DashboardViewModel(IServiceFactory svc, LogService log)
+    public ObservableCollection<string> Profiles { get; }
+
+    public DashboardViewModel(IServiceFactory svc, LogService log, ObservableCollection<string>? profiles = null)
     {
         _svc = svc;
         _log = log;
+        Profiles = profiles ?? [];
     }
 
     [RelayCommand(IncludeCancelCommand = true)]
@@ -35,7 +39,7 @@ public partial class DashboardViewModel : ObservableObject
             var key = _svc.ResolveKey(Password, null, profile.Encryption);
             var cache = _svc.CreateBackupIndexCache();
             var previous = cache.Load(SelectedProfile);
-            var engine = _svc.CreateBackupEngine();
+            var engine = _svc.CreateBackupEngine(profile.AuthToken);
 
             var result = await engine.RunBackupAsync(profile, key, previous, ct);
             if (result.Success)
@@ -45,7 +49,7 @@ public partial class DashboardViewModel : ObservableObject
                 Status = "Backup complete";
                 _log.Log(LastBackupInfo);
 
-                await AppCommands.EnforceRetentionAsync(_svc, profile.Registry, profile.Retention.MaxBackups, key, profile.Encryption.Enabled, ct);
+                await AppCommands.EnforceRetentionAsync(_svc, profile.Registry, profile.Retention.MaxBackups, key, profile.Encryption.Enabled, ct, profile.AuthToken);
             }
             else
             {
