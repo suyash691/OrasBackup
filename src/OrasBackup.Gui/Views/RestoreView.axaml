@@ -9,7 +9,7 @@
 
         <!-- Step 1: Profile -->
         <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinWidth="300" PlaceholderText="Select profile" />
-        <TextBox Watermark="Encryption password" Text="{Binding Password}" PasswordChar="•" />
+        <TextBox PlaceholderText="Encryption password" Text="{Binding Password}" PasswordChar="•" />
         <Button Content="Load Backups" Command="{Binding LoadBackupsCommand}" HorizontalAlignment="Left" />
 
         <!-- Step 2: Pick backup -->
@@ -17,7 +17,7 @@
         <ComboBox ItemsSource="{Binding BackupIds}" SelectedItem="{Binding SelectedBackupId}" MinWidth="300" />
 
         <!-- Step 3: Target -->
-        <TextBox Watermark="Restore target directory" Text="{Binding TargetDir}" />
+        <TextBox PlaceholderText="Restore target directory" Text="{Binding TargetDir}" />
 
         <!-- Step 4: Go -->
         <Button Content="Restore" Command="{Binding RestoreCommand}" IsEnabled="{Binding !IsRunning}" HorizontalAlignment="Left" />
