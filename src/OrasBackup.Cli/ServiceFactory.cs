@@ -37,16 +37,21 @@ public class DefaultServiceFactory : IServiceFactory
             : new HttpClientHandler();
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(30) };
 
-        // Determine base address: env var > registry host from profile
-        var registryBase = Environment.GetEnvironmentVariable("ORAS_REGISTRY_URL")
-            ?? Environment.GetEnvironmentVariable("ORAS_REGISTRY");
+        // Determine base address: explicit registry param > env var
+        string? registryBase = null;
 
-        if (string.IsNullOrEmpty(registryBase) && !string.IsNullOrEmpty(registry))
+        if (!string.IsNullOrEmpty(registry))
         {
             // Extract host from registry string (e.g. "ghcr.io/user/repo" → "ghcr.io")
             var cleaned = registry.Replace("https://", "").Replace("http://", "");
             var firstSlash = cleaned.IndexOf('/');
             registryBase = firstSlash > 0 ? cleaned[..firstSlash] : cleaned;
+        }
+
+        if (string.IsNullOrEmpty(registryBase))
+        {
+            registryBase = Environment.GetEnvironmentVariable("ORAS_REGISTRY_URL")
+                ?? Environment.GetEnvironmentVariable("ORAS_REGISTRY");
         }
 
         if (!string.IsNullOrEmpty(registryBase))

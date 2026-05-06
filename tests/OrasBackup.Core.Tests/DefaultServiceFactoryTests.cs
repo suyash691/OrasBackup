@@ -81,4 +81,12 @@ public class DefaultServiceFactoryTests
         var key = svc.ResolveKey(null, null, new Core.Config.EncryptionConfig { Enabled = false });
         Assert.Equal(32, key.Length);
     }
+    [Fact]
+    public void CreateOrasClient_WithRegistry_SetsBaseAddressAndStripsHost()
+    {
+        var svc = new DefaultServiceFactory();
+        var client = svc.CreateOrasClient("ghcr.io/suyash691/testbackup") as HttpOrasClient;
+        Assert.NotNull(client);
+        Assert.Equal("suyash691/testbackup", client!.StripHost("ghcr.io/suyash691/testbackup"));
+    }
 }

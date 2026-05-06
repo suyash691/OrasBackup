@@ -217,3 +217,45 @@ internal class MockHttpHandler : HttpMessageHandler
             : new HttpResponseMessage(HttpStatusCode.InternalServerError));
     }
 }
+
+public class HttpOrasClientUrlTests
+{
+    [Theory]
+    [InlineData("ghcr.io/suyash691/testbackup", "suyash691/testbackup")]
+    [InlineData("ghcr.io/org/team/repo", "org/team/repo")]
+    [InlineData("localhost:5000/myrepo", "myrepo")]
+    [InlineData("registry.example.com/foo/bar", "foo/bar")]
+    public void StripHost_WithMatchingBaseAddress(string registry, string expectedRepo)
+    {
+        // Simulate what CreateHttpClient does: extract host, set BaseAddress
+        var cleaned = registry.Replace("https://", "").Replace("http://", "");
+        var firstSlash = cleaned.IndexOf('/');
+        var host = firstSlash > 0 ? cleaned[..firstSlash] : cleaned;
+        var scheme = host.Contains("localhost") ? "http" : "https";
+
+        var http = new HttpClient { BaseAddress = new Uri($"{scheme}://{host}") };
+        var sut = new HttpOrasClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance);
+
+        var result = sut.StripHost(registry);
+        Assert.Equal(expectedRepo, result);
+    }
+
+    [Theory]
+    [InlineData("ghcr.io/suyash691/testbackup:mytag", "suyash691/testbackup", "mytag")]
+    [InlineData("ghcr.io/org/repo:latest", "org/repo", "latest")]
+    [InlineData("localhost:5000/myrepo:v1", "myrepo", "v1")]
+    public void ParseReference_WithMatchingBaseAddress(string reference, string expectedRepo, string expectedTag)
+    {
+        var host = reference.Split('/')[0];
+        if (host.Contains(':') && !host.Contains('.')) host = reference[..(reference.IndexOf('/'))]; // localhost:5000
+        else { var s = reference.IndexOf('/'); host = reference[..s]; }
+        var scheme = host.Contains("localhost") ? "http" : "https";
+
+        var http = new HttpClient { BaseAddress = new Uri($"{scheme}://{host}") };
+        var sut = new HttpOrasClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance);
+
+        var (repo, tag) = sut.ParseReference(reference);
+        Assert.Equal(expectedRepo, repo);
+        Assert.Equal(expectedTag, tag);
+    }
+}
