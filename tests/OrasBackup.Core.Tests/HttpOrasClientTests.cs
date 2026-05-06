@@ -260,3 +260,82 @@ public class HttpOrasClientUrlTests
         Assert.Equal(expectedTag, tag);
     }
 }
+
+public class HttpOrasClientAuthTests
+{
+    [Fact]
+    public async Task TokenExchange_On401_FetchesTokenAndRetries()
+    {
+        var handler = new MockHttpHandler();
+
+        // First request: 401 with WWW-Authenticate challenge
+        var challenge = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+        challenge.Headers.WwwAuthenticate.ParseAdd(
+            "Bearer realm=\"https://auth.example.io/token\",service=\"registry.example.io\",scope=\"repository:user/repo:pull,push\"");
+        handler.Enqueue(challenge);
+
+        // Token endpoint: return a token
+        var tokenResp = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"token\":\"test-access-token-123\"}")
+        };
+        handler.Enqueue(tokenResp);
+
+        // Retry with token: success
+        handler.Enqueue(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"tags\":[\"v1\"]}")
+        });
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://registry.example.io") };
+        var sut = new HttpOrasClient(http,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance,
+            authToken: "my-pat");
+
+        var tags = await sut.ListTagsAsync("user/repo");
+
+        Assert.Single(tags);
+        Assert.Equal("v1", tags[0]);
+        // Should have made 3 requests: original 401, token fetch, retry with Bearer
+        Assert.Equal(3, handler.Requests.Count);
+        // Token fetch should use Basic auth
+        Assert.Contains("Basic", handler.Requests[1].Headers.Authorization?.ToString() ?? "");
+        // Retry should use Bearer token
+        Assert.Equal("Bearer", handler.Requests[2].Headers.Authorization?.Scheme);
+        Assert.Equal("test-access-token-123", handler.Requests[2].Headers.Authorization?.Parameter);
+    }
+
+    [Fact]
+    public async Task CachedToken_UsedOnSubsequentRequests()
+    {
+        var handler = new MockHttpHandler();
+
+        // First request: 401
+        var challenge = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+        challenge.Headers.WwwAuthenticate.ParseAdd(
+            "Bearer realm=\"https://auth.example.io/token\",service=\"reg\",scope=\"repository:repo:pull\"");
+        handler.Enqueue(challenge);
+        // Token fetch
+        handler.Enqueue(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        { Content = new StringContent("{\"token\":\"cached-token\"}") });
+        // Retry: success
+        handler.Enqueue(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        { Content = new StringContent("{\"tags\":[\"a\"]}") });
+        // Second call: should use cached token directly (no 401)
+        handler.Enqueue(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        { Content = new StringContent("{\"tags\":[\"b\"]}") });
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://reg.io") };
+        var sut = new HttpOrasClient(http,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance,
+            authToken: "pat");
+
+        await sut.ListTagsAsync("repo");
+        var tags2 = await sut.ListTagsAsync("repo");
+
+        Assert.Equal("b", tags2[0]);
+        // 4th request should have Bearer token (cached, no new 401 exchange)
+        Assert.Equal("Bearer", handler.Requests[3].Headers.Authorization?.Scheme);
+        Assert.Equal("cached-token", handler.Requests[3].Headers.Authorization?.Parameter);
+    }
+}
