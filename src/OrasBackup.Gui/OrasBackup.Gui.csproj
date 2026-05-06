@@ -14,9 +14,6 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.2" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.2" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <!-- Required by Avalonia on Linux for DBus integration (tray icon, notifications) -->
-    <!-- Required >= 0.92.0 by Avalonia 12.x (Avalonia.FreeDesktop -> Tmds.DBus.Protocol) -->
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
     <ProjectReference Include="..\OrasBackup.Core\OrasBackup.Core.csproj" />
     <ProjectReference Include="..\OrasBackup.Cli\OrasBackup.Cli.csproj" />
   </ItemGroup>
