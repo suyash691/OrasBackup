@@ -199,7 +199,7 @@ public class BackupRestoreTests : IDisposable
 
         // Keep only 1 backup
         var svc = NSubstitute.Substitute.For<Cli.IServiceFactory>();
-        svc.CreateOrasClient().Returns(_oras);
+        svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_oras);
         await Cli.AppCommands.EnforceRetentionAsync(svc, _registry, 1, null, false, CancellationToken.None);
 
         var tags = await _oras.ListTagsAsync(_registry);
