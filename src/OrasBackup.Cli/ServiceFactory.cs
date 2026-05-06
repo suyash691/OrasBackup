@@ -21,8 +21,13 @@ public interface IServiceFactory
 
 public class DefaultServiceFactory : IServiceFactory
 {
-    private readonly Lazy<ILoggerFactory> _loggerFactory = new(() => LoggerFactory.Create(b => b.AddConsole()));
+    private readonly Lazy<ILoggerFactory> _loggerFactory;
     private readonly Lazy<IEncryptor> _encryptor = new(() => new AesEncryptor());
+
+    public DefaultServiceFactory(ILoggerFactory? loggerFactory = null)
+    {
+        _loggerFactory = new Lazy<ILoggerFactory>(() => loggerFactory ?? LoggerFactory.Create(b => b.AddConsole().SetMinimumLevel(LogLevel.Debug)));
+    }
 
     private HttpClient CreateHttpClient(string? registry = null)
     {
