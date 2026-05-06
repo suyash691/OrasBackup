@@ -154,4 +154,36 @@ public class KeyHelperTests
                 new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "emptytest" },
                 passwordPrompt: () => ""));
     }
+
+    [Fact]
+    public void Resolve_NoPasswordNoEnv_UsesPrompt()
+    {
+        var prev = Environment.GetEnvironmentVariable("ORASBACKUP_PASSWORD");
+        try
+        {
+            Environment.SetEnvironmentVariable("ORASBACKUP_PASSWORD", null);
+            // Use the injectable prompt to simulate user input
+            var key = KeyHelper.Resolve(null, null,
+                new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "promptcov" },
+                passwordPrompt: () => "from-prompt");
+            Assert.Equal(32, key.Length);
+            Assert.NotEqual(new byte[32], key);
+        }
+        finally { Environment.SetEnvironmentVariable("ORASBACKUP_PASSWORD", prev); }
+    }
+
+    [Fact]
+    public void Resolve_NoPasswordNoEnv_EmptyPrompt_Throws()
+    {
+        var prev = Environment.GetEnvironmentVariable("ORASBACKUP_PASSWORD");
+        try
+        {
+            Environment.SetEnvironmentVariable("ORASBACKUP_PASSWORD", null);
+            Assert.Throws<InvalidOperationException>(() =>
+                KeyHelper.Resolve(null, null,
+                    new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "emptyprompt" },
+                    passwordPrompt: () => ""));
+        }
+        finally { Environment.SetEnvironmentVariable("ORASBACKUP_PASSWORD", prev); }
+    }
 }

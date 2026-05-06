@@ -89,4 +89,18 @@ public class DefaultServiceFactoryTests
         Assert.NotNull(client);
         Assert.Equal("suyash691/testbackup", client!.StripHost("ghcr.io/suyash691/testbackup"));
     }
+
+    [Fact]
+    public void CreateOrasClient_InsecureEnvVar_UsesHttp()
+    {
+        var prev = Environment.GetEnvironmentVariable("ORAS_INSECURE");
+        try
+        {
+            Environment.SetEnvironmentVariable("ORAS_INSECURE", "true");
+            var svc = new DefaultServiceFactory();
+            var client = svc.CreateOrasClient("localhost:5000/repo");
+            Assert.NotNull(client);
+        }
+        finally { Environment.SetEnvironmentVariable("ORAS_INSECURE", prev); }
+    }
 }

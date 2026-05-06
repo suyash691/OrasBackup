@@ -248,4 +248,21 @@ public class RestoreEngineTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _sut.RestoreAsync("reg/repo", null, _targetDir, new byte[32], false));
     }
+
+    [Fact]
+    public async Task Restore_SetsUnixPermissions()
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS()) return; // skip on Windows
+
+        var data = "permtest"u8.ToArray();
+        var manifest = new ChunkManifest { Files = [new ChunkFile { RelativePath = "script.sh", LayerIndex = 1, Sha256 = Hash(data), UnixMode = 0x1ED }] }; // 0755
+        var index = new BackupIndex { BackupId = "b1", Chunks = [new ChunkRef { Tag = "chunk-abc", Path = "root" }] };
+        SetupIndex(index);
+        SetupChunk("chunk-abc", manifest, new() { [1] = data });
+
+        await _sut.RestoreAsync("reg/repo", null, _targetDir, new byte[32], false);
+
+        var mode = File.GetUnixFileMode(Path.Combine(_targetDir, "script.sh"));
+        Assert.True(mode.HasFlag(UnixFileMode.UserExecute));
+    }
 }

@@ -78,4 +78,21 @@ public class HealthServerTests
         server.Start();
         server.Dispose(); // should not throw
     }
+
+    [Fact]
+    public async Task ListenAsync_DisposeDuringRequest_DoesNotThrow()
+    {
+        var port = 18000 + Random.Shared.Next(1000);
+        var server = new HealthServer(port);
+        server.Start();
+
+        // Make a request and immediately dispose — exercises the shutdown exception paths
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(1) };
+        var task = http.GetAsync($"http://localhost:{port}/healthz");
+        await Task.Delay(50);
+        server.Dispose();
+
+        // Either completes or throws — neither should crash the server
+        try { await task; } catch { }
+    }
 }

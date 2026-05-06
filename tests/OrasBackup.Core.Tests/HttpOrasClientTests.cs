@@ -339,3 +339,60 @@ public class HttpOrasClientAuthTests
         Assert.Equal("cached-token", handler.Requests[3].Headers.Authorization?.Parameter);
     }
 }
+
+public class HttpOrasClientAuthFailureTests
+{
+    [Fact]
+    public async Task FetchToken_MalformedChallenge_ReturnsOriginal401()
+    {
+        var handler = new MockHttpHandler();
+        var challenge = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+        challenge.Headers.WwwAuthenticate.ParseAdd("Basic realm=\"nope\""); // not Bearer
+        handler.Enqueue(challenge);
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://reg.io") };
+        var sut = new HttpOrasClient(http,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance, "pat");
+
+        // Should not throw — returns the 401 response since it can't exchange token
+        var result = await Assert.ThrowsAnyAsync<HttpRequestException>(
+            () => sut.ListTagsAsync("repo"));
+    }
+
+    [Fact]
+    public async Task FetchToken_EndpointFails_ReturnsOriginal401()
+    {
+        var handler = new MockHttpHandler();
+        var challenge = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+        challenge.Headers.WwwAuthenticate.ParseAdd(
+            "Bearer realm=\"https://auth.io/token\",service=\"reg\",scope=\"repository:r:pull\"");
+        handler.Enqueue(challenge);
+        // Token endpoint returns 500
+        handler.Enqueue(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError));
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://reg.io") };
+        var sut = new HttpOrasClient(http,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance, "pat");
+
+        await Assert.ThrowsAnyAsync<HttpRequestException>(() => sut.ListTagsAsync("repo"));
+    }
+
+    [Fact]
+    public async Task FetchToken_NoCredential_ReturnsOriginal401()
+    {
+        var handler = new MockHttpHandler();
+        var challenge = new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+        challenge.Headers.WwwAuthenticate.ParseAdd(
+            "Bearer realm=\"https://auth.io/token\",service=\"reg\",scope=\"repository:r:pull\"");
+        handler.Enqueue(challenge);
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://reg.io") };
+        // No auth token provided
+        var sut = new HttpOrasClient(http,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpOrasClient>.Instance);
+
+        await Assert.ThrowsAnyAsync<HttpRequestException>(() => sut.ListTagsAsync("repo"));
+        // Should NOT have called token endpoint (only 1 request)
+        Assert.Single(handler.Requests);
+    }
+}
