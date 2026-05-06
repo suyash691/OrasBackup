@@ -13,7 +13,7 @@
     <PackageReference Include="coverlet.collector" Version="10.0.0" />
     <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.0" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.14" />
     <ProjectReference Include="..\..\src\OrasBackup.Gui\OrasBackup.Gui.csproj" />
     <ProjectReference Include="..\..\src\OrasBackup.Core\OrasBackup.Core.csproj" />
     <ProjectReference Include="..\..\src\OrasBackup.Cli\OrasBackup.Cli.csproj" />

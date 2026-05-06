@@ -9,10 +9,10 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.0" />
+    <PackageReference Include="Avalonia" Version="11.3.14" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.0" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.14" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Required by Avalonia on Linux for DBus integration (tray icon, notifications) -->
     <!-- Pin to 0.21.x — 0.93+ has breaking API changes incompatible with Avalonia 11.3 -->
