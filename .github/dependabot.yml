@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    ignore:
+      # Avalonia 12.x has breaking API changes — stay on 11.3.x
+      - dependency-name: "Avalonia*"
+        update-types: ["version-update:semver-major"]
+      # Tmds.DBus.Protocol 0.93+ is incompatible with Avalonia 11.3
+      - dependency-name: "Tmds.DBus.Protocol"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /
