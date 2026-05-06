@@ -36,7 +36,12 @@ public partial class DashboardViewModel : ObservableObject
         {
             var store = _svc.CreateProfileStore();
             var profile = store.Load(SelectedProfile);
-            var key = _svc.ResolveKey(Password, null, profile.Encryption);
+            if (profile.Encryption.Enabled && string.IsNullOrWhiteSpace(Password))
+            {
+                Status = "Error: encryption password required";
+                return;
+            }
+            var key = _svc.ResolveKey(string.IsNullOrWhiteSpace(Password) ? null : Password, null, profile.Encryption);
             var cache = _svc.CreateBackupIndexCache();
             var previous = cache.Load(SelectedProfile);
             var engine = _svc.CreateBackupEngine(profile.Registry, profile.AuthToken);

@@ -53,7 +53,12 @@ public partial class RestoreViewModel : ObservableObject
         try
         {
             var profile = _svc.CreateProfileStore().Load(SelectedProfile);
-            var key = _svc.ResolveKey(Password, null, profile.Encryption);
+            if (profile.Encryption.Enabled && string.IsNullOrWhiteSpace(Password))
+            {
+                Status = "Error: encryption password required";
+                return;
+            }
+            var key = _svc.ResolveKey(string.IsNullOrWhiteSpace(Password) ? null : Password, null, profile.Encryption);
             var backupId = SelectedBackupId == "(latest)" ? null : SelectedBackupId;
             await _svc.CreateRestoreEngine(profile.Registry, profile.AuthToken).RestoreAsync(
                 profile.Registry, backupId, TargetDir, key, profile.Encryption.Enabled, ct);

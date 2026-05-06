@@ -79,7 +79,7 @@ public sealed class HttpOrasClient : IOrasClient
             size = hashStream.Length;
         }
 
-        // Check if blob already exists
+        // Check if blob already exists (GHCR returns 405 instead of 404 for missing blobs)
         var headResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Head, $"/v2/{repo}/blobs/{digest}"), ct);
         if (headResp.IsSuccessStatusCode)
             return new OrasLayerDescriptor(mediaType, digest, size);
@@ -88,7 +88,10 @@ public sealed class HttpOrasClient : IOrasClient
         // because registries may invalidate the upload URL after a failed PUT)
         for (var attempt = 0; ; attempt++)
         {
-            var postResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/"), ct);
+            var postReq = new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/");
+            postReq.Content = new ByteArrayContent([]);
+            postReq.Content.Headers.ContentLength = 0;
+            var postResp = await SendWithRetryAsync(postReq, ct);
             postResp.EnsureSuccessStatusCode();
             var location = postResp.Headers.Location?.ToString()
                 ?? throw new InvalidOperationException("No Location header from blob upload initiation");
@@ -240,7 +243,10 @@ public sealed class HttpOrasClient : IOrasClient
         var headResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Head, $"/v2/{repo}/blobs/{digest}"), ct);
         if (headResp.IsSuccessStatusCode) return;
 
-        var postResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/"), ct);
+        var postReq = new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/");
+        postReq.Content = new ByteArrayContent([]);
+        postReq.Content.Headers.ContentLength = 0;
+        var postResp = await SendWithRetryAsync(postReq, ct);
         postResp.EnsureSuccessStatusCode();
 
         var location = postResp.Headers.Location?.ToString()
