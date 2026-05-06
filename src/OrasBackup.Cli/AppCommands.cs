@@ -55,7 +55,7 @@ public static class AppCommands
             var key = svc.ResolveKey(parseResult.GetValue(PasswordOpt), parseResult.GetValue(KeyFileOpt), p.Encryption);
             var cache = svc.CreateBackupIndexCache();
             var previous = cache.Load(profileName);
-            var engine = svc.CreateBackupEngine(p.AuthToken);
+            var engine = svc.CreateBackupEngine(p.Registry, p.AuthToken);
             var result = await engine.RunBackupAsync(p, key, previous, ct);
             if (result.Success)
             {
@@ -83,7 +83,7 @@ public static class AppCommands
             var key = svc.ResolveKey(parseResult.GetValue(PasswordOpt), parseResult.GetValue(KeyFileOpt), p.Encryption);
             var backupId = parseResult.GetValue(backupIdOpt);
             var target = parseResult.GetValue(targetOpt)!;
-            await svc.CreateRestoreEngine(p.AuthToken).RestoreAsync(p.Registry, backupId, target, key, p.Encryption.Enabled, ct);
+            await svc.CreateRestoreEngine(p.Registry, p.AuthToken).RestoreAsync(p.Registry, backupId, target, key, p.Encryption.Enabled, ct);
             Console.WriteLine($"Restore complete to {target}");
         });
         return cmd;
@@ -104,7 +104,7 @@ public static class AppCommands
                 return;
             }
             var p = svc.CreateProfileStore().Load(profile);
-            var tags = await svc.CreateOrasClient(p.AuthToken).ListTagsAsync(p.Registry, ct);
+            var tags = await svc.CreateOrasClient(p.Registry, p.AuthToken).ListTagsAsync(p.Registry, ct);
             Console.WriteLine($"Backups for '{profile}':");
             foreach (var tag in tags)
                 Console.WriteLine($"  {tag}");
@@ -132,7 +132,7 @@ public static class AppCommands
             try { health.Start(); Console.WriteLine($"Health endpoint: http://0.0.0.0:{healthPort}/healthz"); }
             catch (Exception ex) { Console.WriteLine($"Health endpoint unavailable: {ex.Message}"); }
 
-            var engine = svc.CreateBackupEngine(p.AuthToken);
+            var engine = svc.CreateBackupEngine(p.Registry, p.AuthToken);
             var cache = svc.CreateBackupIndexCache();
             using var scheduler = new BackupScheduler(engine, svc.CreateLogger<BackupScheduler>(), health, cache,
                 async (profile, key, ct) => await EnforceRetentionAsync(svc, profile.Registry,
@@ -151,7 +151,7 @@ public static class AppCommands
     public static async Task EnforceRetentionAsync(IServiceFactory svc, string registry, int maxBackups,
         byte[]? encryptionKey, bool encrypted, CancellationToken ct, string? authToken = null)
     {
-        var oras = svc.CreateOrasClient(authToken);
+        var oras = svc.CreateOrasClient(registry, authToken);
         var allTags = await oras.ListTagsAsync(registry, ct);
         var backupTags = allTags.Where(t => t != "latest" && !t.StartsWith("chunk-")).OrderBy(t => t).ToList();
 

@@ -39,7 +39,7 @@ public partial class DashboardViewModel : ObservableObject
             var key = _svc.ResolveKey(Password, null, profile.Encryption);
             var cache = _svc.CreateBackupIndexCache();
             var previous = cache.Load(SelectedProfile);
-            var engine = _svc.CreateBackupEngine(profile.AuthToken);
+            var engine = _svc.CreateBackupEngine(profile.Registry, profile.AuthToken);
 
             var result = await engine.RunBackupAsync(profile, key, previous, ct);
             if (result.Success)

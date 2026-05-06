@@ -21,9 +21,9 @@ public class AppCommandsTests
     public AppCommandsTests()
     {
         _svc.CreateProfileStore().Returns(_store);
-        _svc.CreateOrasClient().Returns(_oras);
-        _svc.CreateBackupEngine().Returns(_engine);
-        _svc.CreateRestoreEngine().Returns(_restoreEngine);
+        _svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_oras);
+        _svc.CreateBackupEngine(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_engine);
+        _svc.CreateRestoreEngine(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_restoreEngine);
         _svc.CreateBackupIndexCache().Returns(Substitute.For<IBackupIndexCache>());
         _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
         _svc.CreateLogger<BackupScheduler>().Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<BackupScheduler>.Instance);

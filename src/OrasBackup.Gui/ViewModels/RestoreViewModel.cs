@@ -35,7 +35,7 @@ public partial class RestoreViewModel : ObservableObject
         try
         {
             var profile = _svc.CreateProfileStore().Load(SelectedProfile);
-            var tags = await _svc.CreateOrasClient(profile.AuthToken).ListTagsAsync(profile.Registry);
+            var tags = await _svc.CreateOrasClient(profile.Registry, profile.AuthToken).ListTagsAsync(profile.Registry);
             BackupIds.Clear();
             BackupIds.Add("(latest)");
             foreach (var tag in tags.Where(t => t != "latest" && !t.StartsWith("chunk-")).OrderDescending())
@@ -55,7 +55,7 @@ public partial class RestoreViewModel : ObservableObject
             var profile = _svc.CreateProfileStore().Load(SelectedProfile);
             var key = _svc.ResolveKey(Password, null, profile.Encryption);
             var backupId = SelectedBackupId == "(latest)" ? null : SelectedBackupId;
-            await _svc.CreateRestoreEngine(profile.AuthToken).RestoreAsync(
+            await _svc.CreateRestoreEngine(profile.Registry, profile.AuthToken).RestoreAsync(
                 profile.Registry, backupId, TargetDir, key, profile.Encryption.Enabled, ct);
             Status = $"Restored to {TargetDir}";
             _log.Log($"Restore complete to {TargetDir}");

@@ -13,7 +13,7 @@ public class EnforceRetentionTests
     {
         var svc = Substitute.For<IServiceFactory>();
         var oras = Substitute.For<IOrasClient>();
-        svc.CreateOrasClient().Returns(oras);
+        svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(oras);
         oras.ListTagsAsync("reg/repo", Arg.Any<CancellationToken>())
             .Returns(new[] { "20260101-120000-aaa", "20260102-120000-bbb", "latest", "chunk-abc" });
 
@@ -27,7 +27,7 @@ public class EnforceRetentionTests
     {
         var svc = Substitute.For<IServiceFactory>();
         var oras = Substitute.For<IOrasClient>();
-        svc.CreateOrasClient().Returns(oras);
+        svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(oras);
 
         // First call: pre-deletion state (3 backups + 2 chunks)
         // Second call: post-deletion state (2 backups + 2 chunks, oldest deleted)

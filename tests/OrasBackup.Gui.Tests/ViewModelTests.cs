@@ -247,10 +247,10 @@ public class DashboardViewModelTests
     public DashboardViewModelTests()
     {
         _svc.CreateProfileStore().Returns(_store);
-        _svc.CreateBackupEngine(Arg.Any<string?>()).Returns(_engine);
+        _svc.CreateBackupEngine(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_engine);
         _svc.CreateBackupIndexCache().Returns(new BackupIndexCache(Path.Combine(Path.GetTempPath(), $"dash-cache-{Guid.NewGuid():N}")));
         _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
-        _svc.CreateOrasClient(Arg.Any<string?>()).Returns(Substitute.For<IOrasClient>());
+        _svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(Substitute.For<IOrasClient>());
 
         _store.Load("test").Returns(new BackupProfile
         {
@@ -264,7 +264,7 @@ public class DashboardViewModelTests
 
         var oras = Substitute.For<IOrasClient>();
         oras.ListTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
-        _svc.CreateOrasClient(Arg.Any<string?>()).Returns(oras);
+        _svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(oras);
     }
 
     [Fact]
@@ -350,8 +350,8 @@ public class RestoreViewModelTests
     public RestoreViewModelTests()
     {
         _svc.CreateProfileStore().Returns(_store);
-        _svc.CreateOrasClient(Arg.Any<string?>()).Returns(_oras);
-        _svc.CreateRestoreEngine(Arg.Any<string?>()).Returns(_restoreEngine);
+        _svc.CreateOrasClient(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_oras);
+        _svc.CreateRestoreEngine(Arg.Any<string?>(), Arg.Any<string?>()).Returns(_restoreEngine);
         _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
 
         _store.Load("test").Returns(new BackupProfile
