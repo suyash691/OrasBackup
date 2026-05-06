@@ -93,14 +93,21 @@ public sealed class HttpOrasClient : IOrasClient
             postReq.Content.Headers.ContentLength = 0;
             var postResp = await SendWithRetryAsync(postReq, ct);
             postResp.EnsureSuccessStatusCode();
-            var location = postResp.Headers.Location?.ToString()
+
+            // Location may be absolute or relative — resolve against base
+            var locationUri = postResp.Headers.Location
                 ?? throw new InvalidOperationException("No Location header from blob upload initiation");
-            var separator = location.Contains('?') ? "&" : "?";
-            var putUrl = $"{location}{separator}digest={Uri.EscapeDataString(digest)}";
+            var resolvedLocation = locationUri.IsAbsoluteUri
+                ? locationUri.ToString()
+                : (_http.BaseAddress != null ? new Uri(_http.BaseAddress, locationUri).ToString() : locationUri.ToString());
+
+            var separator = resolvedLocation.Contains('?') ? "&" : "?";
+            var putUrl = $"{resolvedLocation}{separator}digest={Uri.EscapeDataString(digest)}";
 
             using var fileStream = File.OpenRead(filePath);
             var req = new HttpRequestMessage(HttpMethod.Put, putUrl) { Content = new StreamContent(fileStream) };
             req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            req.Content.Headers.ContentLength = size;
             var putResp = await _http.SendAsync(req, ct);
             if (putResp.IsSuccessStatusCode || attempt >= 3) { putResp.EnsureSuccessStatusCode(); break; }
             var status = (int)putResp.StatusCode;
@@ -249,8 +256,11 @@ public sealed class HttpOrasClient : IOrasClient
         var postResp = await SendWithRetryAsync(postReq, ct);
         postResp.EnsureSuccessStatusCode();
 
-        var location = postResp.Headers.Location?.ToString()
+        var locationUri = postResp.Headers.Location
             ?? throw new InvalidOperationException("No Location header from blob upload initiation");
+        var location = locationUri.IsAbsoluteUri
+            ? locationUri.ToString()
+            : (_http.BaseAddress != null ? new Uri(_http.BaseAddress, locationUri).ToString() : locationUri.ToString());
 
         var separator = location.Contains('?') ? "&" : "?";
         var putUrl = $"{location}{separator}digest={Uri.EscapeDataString(digest)}";
