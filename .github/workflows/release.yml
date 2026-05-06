@@ -89,6 +89,10 @@ jobs:
               -o dist/gui/$rid
           done
 
+      - name: Inspect GUI output
+        run: |
+          ls -R dist/gui
+
       - name: Package CLI binaries
         if: steps.check_tag.outputs.exists == 'false'
         run: |
@@ -108,9 +112,9 @@ jobs:
           cd dist/gui
           for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
             if [ "$rid" = "win-x64" ]; then
-              zip -j ../../artifacts/orasbackup-${rid}.zip $rid/orasbackup.exe
+              zip -j ../../artifacts/orasbackupgui-${rid}.zip $rid/orasbackup.exe
             else
-              tar czf ../../artifacts/orasbackup-${rid}.tar.gz -C $rid orasbackup
+              tar czf ../../artifacts/orasbackupgui-${rid}.tar.gz -C $rid orasbackup
             fi
           done
 
