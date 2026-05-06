@@ -331,6 +331,12 @@ public sealed class HttpOrasClient : IOrasClient
 
     internal string StripHost(string repo)
     {
+        // Strip scheme if present (user may enter https://ghcr.io/user/repo)
+        if (repo.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            repo = repo[8..];
+        else if (repo.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            repo = repo[7..];
+
         if (_http.BaseAddress is not null)
         {
             var hostPort = $"{_http.BaseAddress.Host}:{_http.BaseAddress.Port}/";

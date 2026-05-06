@@ -222,6 +222,7 @@ public class HttpOrasClientUrlTests
 {
     [Theory]
     [InlineData("ghcr.io/suyash691/testbackup", "suyash691/testbackup")]
+    [InlineData("https://ghcr.io/suyash691/testbackup", "suyash691/testbackup")]
     [InlineData("ghcr.io/org/team/repo", "org/team/repo")]
     [InlineData("localhost:5000/myrepo", "myrepo")]
     [InlineData("registry.example.com/foo/bar", "foo/bar")]
