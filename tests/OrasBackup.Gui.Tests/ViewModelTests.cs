@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using OrasBackup.Cli;
@@ -480,5 +481,118 @@ public class LogViewModelTests
         var vm = new LogViewModel(log);
         vm.ClearCommand.Execute(null);
         Assert.Empty(vm.Entries);
+    }
+}
+
+public class LogServiceTests
+{
+    [Fact]
+    public void Log_WithDispatcher_UsesDispatcher()
+    {
+        var dispatched = false;
+        var log = new LogService(action => { dispatched = true; action(); });
+        log.Log("test");
+        Assert.True(dispatched);
+        Assert.Single(log.Entries);
+    }
+
+    [Fact]
+    public void Log_WithoutDispatcher_AddsDirect()
+    {
+        var log = new LogService();
+        log.Log("direct");
+        Assert.Single(log.Entries);
+        Assert.Contains("direct", log.Entries[0]);
+    }
+
+    [Fact]
+    public void Log_IncludesTimestamp()
+    {
+        var log = new LogService();
+        log.Log("msg");
+        Assert.Matches(@"\[\d{2}:\d{2}:\d{2}\]", log.Entries[0]);
+    }
+}
+
+public class LogServiceProviderTests
+{
+    [Fact]
+    public void CreateLogger_ReturnsLogger()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("OrasBackup.Core.Oras.HttpOrasClient");
+        Assert.NotNull(logger);
+    }
+
+    [Fact]
+    public void Logger_LogsToLogService()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("Some.Namespace.MyClass");
+        logger.LogDebug("hello world");
+        Assert.Single(log.Entries);
+        Assert.Contains("[MyClass]", log.Entries[0]);
+        Assert.Contains("hello world", log.Entries[0]);
+    }
+
+    [Fact]
+    public void Logger_IsEnabled_DebugAndAbove()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("Test");
+        Assert.True(logger.IsEnabled(LogLevel.Debug));
+        Assert.True(logger.IsEnabled(LogLevel.Information));
+        Assert.True(logger.IsEnabled(LogLevel.Error));
+        Assert.False(logger.IsEnabled(LogLevel.Trace));
+    }
+
+    [Fact]
+    public void Logger_BelowMinLevel_DoesNotLog()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("Test");
+        logger.LogTrace("should not appear");
+        Assert.Empty(log.Entries);
+    }
+
+    [Fact]
+    public void Logger_ShortensCategory()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("Very.Long.Namespace.ClassName");
+        logger.LogInformation("test");
+        Assert.Contains("[ClassName]", log.Entries[0]);
+    }
+
+    [Fact]
+    public void Logger_NoDot_UsesFullCategory()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("SimpleCategory");
+        logger.LogInformation("test");
+        Assert.Contains("[SimpleCategory]", log.Entries[0]);
+    }
+
+    [Fact]
+    public void Dispose_DoesNotThrow()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        provider.Dispose(); // should not throw
+    }
+
+    [Fact]
+    public void BeginScope_ReturnsNull()
+    {
+        var log = new LogService();
+        var provider = new LogServiceProvider(log);
+        var logger = provider.CreateLogger("Test");
+        Assert.Null(logger.BeginScope("scope"));
     }
 }

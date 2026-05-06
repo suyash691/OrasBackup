@@ -114,4 +114,19 @@ public class AppCommandsTests
         await _root.Parse("list --profile myprof").InvokeAsync();
         await _oras.Received().ListTagsAsync("reg/repo", Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task Backup_Failure_PrintsError()
+    {
+        _store.Load("failprof").Returns(new BackupProfile
+        {
+            Name = "failprof", SourcePaths = ["/nonexistent"], Registry = "reg/repo",
+            Encryption = new EncryptionConfig { Enabled = false }
+        });
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns(new BackupResult("b1", 0, 0, 0, 0, TimeSpan.Zero, false, "disk full"));
+
+        // Should not throw — prints error to stderr
+        await _root.Parse("backup --profile failprof --password x").InvokeAsync();
+    }
 }

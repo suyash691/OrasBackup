@@ -186,4 +186,29 @@ public class KeyHelperTests
         }
         finally { Environment.SetEnvironmentVariable("ORASBACKUP_PASSWORD", prev); }
     }
+
+    [Fact]
+    public void Resolve_InvalidProfileName_Throws()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            KeyHelper.Resolve("password", null,
+                new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = "../../evil" }));
+    }
+
+    [Fact]
+    public void Resolve_CreatesSaltFile_WhenNotExists()
+    {
+        // Use a unique profile name that won't have a salt file yet
+        var uniqueName = $"salttest-{Guid.NewGuid():N}"[..20];
+        var key = KeyHelper.Resolve("testpass", null,
+            new EncryptionConfig { Enabled = true, Pbkdf2Iterations = 1000, ProfileName = uniqueName });
+        Assert.Equal(32, key.Length);
+
+        // Verify salt file was created
+        var saltPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".orasbackup", "salts", $"{uniqueName}.salt");
+        Assert.True(File.Exists(saltPath));
+        File.Delete(saltPath); // cleanup
+    }
 }
