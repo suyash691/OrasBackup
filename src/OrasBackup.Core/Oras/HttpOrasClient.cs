@@ -16,13 +16,15 @@ public sealed class HttpOrasClient : IOrasClient
         _http = http;
         _logger = logger;
 
-        // Explicit token takes priority, then env vars as fallback (CLI/Docker)
+        // Auth: PAT used as Basic auth password (matches docker login / oras login behavior)
+        // GHCR and most registries expect Basic auth, not raw Bearer tokens
         var pat = authToken
             ?? Environment.GetEnvironmentVariable("ORAS_PAT");
         var username = Environment.GetEnvironmentVariable("ORAS_USERNAME");
         var password = Environment.GetEnvironmentVariable("ORAS_PASSWORD");
         if (!string.IsNullOrEmpty(pat))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pat);
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.UTF8.GetBytes($"orasbackup:{pat}")));
         else if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
                 Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}")));
