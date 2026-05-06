@@ -40,3 +40,4 @@ artifacts/
 [Bb]uild[Ll]og.*
 TestResult.xml
 logs/
+coverage/
