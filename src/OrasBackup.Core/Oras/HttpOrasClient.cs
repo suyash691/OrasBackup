@@ -88,24 +88,24 @@ public sealed class HttpOrasClient : IOrasClient
         // because registries may invalidate the upload URL after a failed PUT)
         for (var attempt = 0; ; attempt++)
         {
-            var postReq = new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/");
-            postReq.Content = new ByteArrayContent([]);
-            postReq.Content.Headers.ContentLength = 0;
-            var postResp = await SendWithRetryAsync(postReq, ct);
+            // POST with no body — per oras-go and OCI spec
+            var postResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/"), ct);
             postResp.EnsureSuccessStatusCode();
 
-            // Location may be absolute or relative — resolve against base
+            // Resolve Location (may be absolute or relative)
             var locationUri = postResp.Headers.Location
                 ?? throw new InvalidOperationException("No Location header from blob upload initiation");
-            var resolvedLocation = locationUri.IsAbsoluteUri
-                ? locationUri.ToString()
-                : (_http.BaseAddress != null ? new Uri(_http.BaseAddress, locationUri).ToString() : locationUri.ToString());
+            var resolvedUri = locationUri.IsAbsoluteUri
+                ? locationUri
+                : new Uri(_http.BaseAddress!, locationUri);
 
-            var separator = resolvedLocation.Contains('?') ? "&" : "?";
-            var putUrl = $"{resolvedLocation}{separator}digest={Uri.EscapeDataString(digest)}";
+            // Add digest as query parameter (per oras-go: req.URL.Query().Set("digest", ...))
+            var uriBuilder = new UriBuilder(resolvedUri);
+            var query = string.IsNullOrEmpty(uriBuilder.Query) ? "" : uriBuilder.Query[1..] + "&";
+            uriBuilder.Query = query + $"digest={Uri.EscapeDataString(digest)}";
 
             using var fileStream = File.OpenRead(filePath);
-            var req = new HttpRequestMessage(HttpMethod.Put, putUrl) { Content = new StreamContent(fileStream) };
+            var req = new HttpRequestMessage(HttpMethod.Put, uriBuilder.Uri) { Content = new StreamContent(fileStream) };
             req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             req.Content.Headers.ContentLength = size;
             var putResp = await _http.SendAsync(req, ct);
@@ -250,21 +250,19 @@ public sealed class HttpOrasClient : IOrasClient
         var headResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Head, $"/v2/{repo}/blobs/{digest}"), ct);
         if (headResp.IsSuccessStatusCode) return;
 
-        var postReq = new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/");
-        postReq.Content = new ByteArrayContent([]);
-        postReq.Content.Headers.ContentLength = 0;
-        var postResp = await SendWithRetryAsync(postReq, ct);
+        var postResp = await SendWithRetryAsync(new HttpRequestMessage(HttpMethod.Post, $"/v2/{repo}/blobs/uploads/"), ct);
         postResp.EnsureSuccessStatusCode();
 
         var locationUri = postResp.Headers.Location
             ?? throw new InvalidOperationException("No Location header from blob upload initiation");
-        var location = locationUri.IsAbsoluteUri
-            ? locationUri.ToString()
-            : (_http.BaseAddress != null ? new Uri(_http.BaseAddress, locationUri).ToString() : locationUri.ToString());
+        var resolvedUri = locationUri.IsAbsoluteUri
+            ? locationUri
+            : new Uri(_http.BaseAddress!, locationUri);
 
-        var separator = location.Contains('?') ? "&" : "?";
-        var putUrl = $"{location}{separator}digest={Uri.EscapeDataString(digest)}";
-        var putResp = await SendWithRetryAsync(MakePut(putUrl, data, "application/octet-stream"), ct);
+        var uriBuilder = new UriBuilder(resolvedUri);
+        var query = string.IsNullOrEmpty(uriBuilder.Query) ? "" : uriBuilder.Query[1..] + "&";
+        uriBuilder.Query = query + $"digest={Uri.EscapeDataString(digest)}";
+        var putResp = await SendWithRetryAsync(MakePut(uriBuilder.Uri.ToString(), data, "application/octet-stream"), ct);
         putResp.EnsureSuccessStatusCode();
     }
 
