@@ -11,3 +11,4 @@ coverage:
 ignore:
   - "**/*.g.cs"
   - "**/obj/**"
+  - "**/Program.cs"
