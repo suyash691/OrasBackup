@@ -108,7 +108,14 @@ public sealed class HttpOrasClient : IOrasClient
             var req = new HttpRequestMessage(HttpMethod.Put, uriBuilder.Uri) { Content = new StreamContent(fileStream) };
             req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             req.Content.Headers.ContentLength = size;
+            _logger.LogDebug("PUT {Url} (Content-Length: {Size})", req.RequestUri, size);
             var putResp = await _http.SendAsync(req, ct);
+            _logger.LogDebug("PUT → {Status} {Reason}", (int)putResp.StatusCode, putResp.ReasonPhrase);
+            if (!putResp.IsSuccessStatusCode)
+            {
+                var errBody = await putResp.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("PUT error body: {Body}", errBody.Length > 500 ? errBody[..500] : errBody);
+            }
             if (putResp.IsSuccessStatusCode || attempt >= 3) { putResp.EnsureSuccessStatusCode(); break; }
             var status = (int)putResp.StatusCode;
             if (status != 429 && status != 500 && status != 503) { putResp.EnsureSuccessStatusCode(); break; }
@@ -287,6 +294,14 @@ public sealed class HttpOrasClient : IOrasClient
             }
 
             var resp = await _http.SendAsync(req, ct);
+            _logger.LogDebug("{Method} {Url} → {Status} {Reason}",
+                req.Method, req.RequestUri, (int)resp.StatusCode, resp.ReasonPhrase);
+            if (!resp.IsSuccessStatusCode && (int)resp.StatusCode != 429 && (int)resp.StatusCode != 503 && (int)resp.StatusCode != 500)
+            {
+                var errorBody = await resp.Content.ReadAsStringAsync(ct);
+                if (!string.IsNullOrEmpty(errorBody))
+                    _logger.LogWarning("Response body: {Body}", errorBody.Length > 500 ? errorBody[..500] : errorBody);
+            }
             if (resp.IsSuccessStatusCode || attempt >= maxRetries) return resp;
             var status = (int)resp.StatusCode;
             if (status != 429 && status != 503 && status != 500) return resp;
