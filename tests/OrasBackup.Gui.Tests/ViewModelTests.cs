@@ -128,6 +128,113 @@ public class ProfileManagerViewModelTests
         Assert.False(File.Exists(profilePath));
         try { Directory.Delete(tmpDir, true); } catch { }
     }
+
+    [Fact]
+    public void SelectProfile_LoadsFieldsForEditing()
+    {
+        _store.Load("existing").Returns(new BackupProfile
+        {
+            Name = "existing", SourcePaths = ["/data", "/photos"],
+            Registry = "ghcr.io/user/backups", AuthToken = "ghp_secret123",
+            Encryption = new EncryptionConfig { Enabled = true },
+            Retention = new RetentionConfig { MaxBackups = 30 }
+        });
+
+        var vm = new ProfileManagerViewModel(_svc, _log);
+        vm.SelectedProfile = "existing";
+
+        Assert.Equal("existing", vm.EditName);
+        Assert.Contains("/data", vm.EditSource);
+        Assert.Equal("ghcr.io/user/backups", vm.EditRegistry);
+        Assert.Equal("ghp_secret123", vm.EditAuthToken);
+        Assert.True(vm.EditEncryption);
+        Assert.Equal(30, vm.EditMaxBackups);
+        Assert.True(vm.IsEditing);
+    }
+
+    [Fact]
+    public void SaveProfile_UpdatesExistingProfile()
+    {
+        _store.Load("existing").Returns(new BackupProfile
+        {
+            Name = "existing", SourcePaths = ["/old"], Registry = "old.io/repo"
+        });
+        _store.ListProfiles().Returns(new[] { "existing" });
+
+        var vm = new ProfileManagerViewModel(_svc, _log);
+        vm.SelectedProfile = "existing";
+        vm.EditRegistry = "new.io/repo";
+        vm.EditAuthToken = "new-token";
+        vm.SaveProfileCommand.Execute(null);
+
+        _store.Received().Save(Arg.Is<BackupProfile>(p =>
+            p.Registry == "new.io/repo" && p.AuthToken == "new-token"));
+    }
+
+    [Fact]
+    public void CreateProfile_WithAuthToken_SavesToken()
+    {
+        _store.ListProfiles().Returns(Array.Empty<string>(), new[] { "newprof" });
+        var vm = new ProfileManagerViewModel(_svc, _log);
+        vm.EditName = "newprof";
+        vm.EditSource = "/data";
+        vm.EditRegistry = "ghcr.io/user/repo";
+        vm.EditAuthToken = "ghp_mytoken";
+        vm.CreateProfileCommand.Execute(null);
+
+        _store.Received().Save(Arg.Is<BackupProfile>(p =>
+            p.Name == "newprof" && p.AuthToken == "ghp_mytoken"));
+    }
+
+    [Fact]
+    public void CreateProfile_EmptyAuthToken_SavesNull()
+    {
+        _store.ListProfiles().Returns(Array.Empty<string>(), new[] { "newprof" });
+        var vm = new ProfileManagerViewModel(_svc, _log);
+        vm.EditName = "newprof";
+        vm.EditSource = "/data";
+        vm.EditRegistry = "reg.io/repo";
+        vm.EditAuthToken = "";
+        vm.CreateProfileCommand.Execute(null);
+
+        _store.Received().Save(Arg.Is<BackupProfile>(p => p.AuthToken == null));
+    }
+
+    [Fact]
+    public void NewProfile_ClearsFormAndExitsEditMode()
+    {
+        _store.Load("existing").Returns(new BackupProfile { Name = "existing", Registry = "r" });
+        var vm = new ProfileManagerViewModel(_svc, _log);
+        vm.SelectedProfile = "existing";
+        Assert.True(vm.IsEditing);
+
+        vm.NewProfileCommand.Execute(null);
+        Assert.False(vm.IsEditing);
+        Assert.Equal("", vm.EditName);
+        Assert.Equal("", vm.EditRegistry);
+    }
+
+    [Fact]
+    public void SharedProfileList_UpdatesWhenProfileCreated()
+    {
+        _store.ListProfiles().Returns(Array.Empty<string>(), new[] { "fresh" });
+        var vm = new ProfileManagerViewModel(_svc, _log);
+
+        // Dashboard and Restore share the same ObservableCollection
+        var dashboard = new DashboardViewModel(
+            _svc, _log, vm.Profiles);
+        var restore = new RestoreViewModel(
+            _svc, _log, vm.Profiles);
+
+        vm.EditName = "fresh";
+        vm.EditSource = "/data";
+        vm.EditRegistry = "reg.io/repo";
+        vm.CreateProfileCommand.Execute(null);
+
+        // The shared collection should now contain the new profile
+        Assert.Contains("fresh", dashboard.Profiles);
+        Assert.Contains("fresh", restore.Profiles);
+    }
 }
 
 public class DashboardViewModelTests
@@ -140,10 +247,10 @@ public class DashboardViewModelTests
     public DashboardViewModelTests()
     {
         _svc.CreateProfileStore().Returns(_store);
-        _svc.CreateBackupEngine().Returns(_engine);
+        _svc.CreateBackupEngine(Arg.Any<string?>()).Returns(_engine);
         _svc.CreateBackupIndexCache().Returns(new BackupIndexCache(Path.Combine(Path.GetTempPath(), $"dash-cache-{Guid.NewGuid():N}")));
         _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
-        _svc.CreateOrasClient().Returns(Substitute.For<IOrasClient>());
+        _svc.CreateOrasClient(Arg.Any<string?>()).Returns(Substitute.For<IOrasClient>());
 
         _store.Load("test").Returns(new BackupProfile
         {
@@ -157,7 +264,7 @@ public class DashboardViewModelTests
 
         var oras = Substitute.For<IOrasClient>();
         oras.ListTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
-        _svc.CreateOrasClient().Returns(oras);
+        _svc.CreateOrasClient(Arg.Any<string?>()).Returns(oras);
     }
 
     [Fact]
@@ -243,8 +350,8 @@ public class RestoreViewModelTests
     public RestoreViewModelTests()
     {
         _svc.CreateProfileStore().Returns(_store);
-        _svc.CreateOrasClient().Returns(_oras);
-        _svc.CreateRestoreEngine().Returns(_restoreEngine);
+        _svc.CreateOrasClient(Arg.Any<string?>()).Returns(_oras);
+        _svc.CreateRestoreEngine(Arg.Any<string?>()).Returns(_restoreEngine);
         _svc.ResolveKey(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<EncryptionConfig>()).Returns(new byte[32]);
 
         _store.Load("test").Returns(new BackupProfile
