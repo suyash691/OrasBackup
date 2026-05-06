@@ -338,6 +338,36 @@ public class DashboardViewModelTests
         await vm.RunBackupCommand.ExecuteAsync(null);
         Assert.Equal("Cancelled", vm.Status);
     }
+
+    [Fact]
+    public async Task RunBackup_EncryptionEnabled_NoPassword_ShowsError()
+    {
+        _store.Load("encrypted").Returns(new BackupProfile
+        {
+            Name = "encrypted", SourcePaths = ["/data"], Registry = "reg/repo",
+            Encryption = new EncryptionConfig { Enabled = true }
+        });
+
+        var vm = new DashboardViewModel(_svc, _log);
+        vm.SelectedProfile = "encrypted";
+        vm.Password = "";
+        await vm.RunBackupCommand.ExecuteAsync(null);
+        Assert.Equal("Error: encryption password required", vm.Status);
+    }
+
+    [Fact]
+    public async Task RunBackup_UnexpectedException_ShowsError()
+    {
+        _engine.RunBackupAsync(Arg.Any<BackupProfile>(), Arg.Any<byte[]>(), Arg.Any<BackupIndex?>(), Arg.Any<CancellationToken>())
+            .Returns<BackupResult>(_ => throw new IOException("disk exploded"));
+
+        var vm = new DashboardViewModel(_svc, _log);
+        vm.SelectedProfile = "test";
+        await vm.RunBackupCommand.ExecuteAsync(null);
+        Assert.StartsWith("Error:", vm.Status);
+        Assert.Contains("disk exploded", vm.Status);
+        Assert.Contains(_log.Entries, e => e.Contains("disk exploded"));
+    }
 }
 
 public class RestoreViewModelTests
