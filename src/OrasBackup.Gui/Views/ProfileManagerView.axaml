@@ -21,7 +21,7 @@
                        FontWeight="Bold" FontSize="16" />
             <TextBox PlaceholderText="Profile name" Text="{Binding EditName}" />
             <TextBox PlaceholderText="Source paths (comma-separated)" Text="{Binding EditSource}" />
-            <TextBox PlaceholderText="Registry (e.g. ghcr.io/user/backups)" Text="{Binding EditRegistry}" />
+            <TextBox PlaceholderText="Registry (e.g. ghcr.io/user/backups or ghcr.io/org/repo)" Text="{Binding EditRegistry}" />
             <TextBox PlaceholderText="Auth token (PAT for GHCR, optional)" Text="{Binding EditAuthToken}" PasswordChar="•" />
             <CheckBox Content="Encryption enabled" IsChecked="{Binding EditEncryption}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
