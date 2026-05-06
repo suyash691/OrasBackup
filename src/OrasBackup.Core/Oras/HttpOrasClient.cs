@@ -16,18 +16,58 @@ public sealed class HttpOrasClient : IOrasClient
         _http = http;
         _logger = logger;
 
-        // Auth: PAT used as Basic auth password (matches docker login / oras login behavior)
-        // GHCR and most registries expect Basic auth, not raw Bearer tokens
-        var pat = authToken
-            ?? Environment.GetEnvironmentVariable("ORAS_PAT");
+        // Auth credentials stored for token exchange (not set on DefaultRequestHeaders)
+        var pat = authToken ?? Environment.GetEnvironmentVariable("ORAS_PAT");
         var username = Environment.GetEnvironmentVariable("ORAS_USERNAME");
         var password = Environment.GetEnvironmentVariable("ORAS_PASSWORD");
         if (!string.IsNullOrEmpty(pat))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
-                Convert.ToBase64String(Encoding.UTF8.GetBytes($"orasbackup:{pat}")));
+            _credential = ("orasbackup", pat);
         else if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
-                Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}")));
+            _credential = (username, password);
+    }
+
+    private (string user, string pass)? _credential;
+    private string? _cachedToken;
+
+    /// <summary>
+    /// Handles 401 challenges by fetching a token from the registry's auth endpoint.
+    /// Matches the OAuth2 token flow used by docker login and oras CLI.
+    /// </summary>
+    private async Task<string?> FetchTokenAsync(HttpResponseMessage resp, CancellationToken ct)
+    {
+        if (_credential == null) return null;
+        var wwwAuth = resp.Headers.WwwAuthenticate.FirstOrDefault()?.ToString();
+        if (string.IsNullOrEmpty(wwwAuth) || !wwwAuth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        // Parse: Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:user/repo:pull,push"
+        var parts = wwwAuth[7..].Split(',')
+            .Select(p => p.Trim().Split('=', 2))
+            .Where(p => p.Length == 2)
+            .ToDictionary(p => p[0].Trim(), p => p[1].Trim('"'));
+
+        if (!parts.TryGetValue("realm", out var realm)) return null;
+
+        var query = new List<string>();
+        if (parts.TryGetValue("service", out var service)) query.Add($"service={Uri.EscapeDataString(service)}");
+        if (parts.TryGetValue("scope", out var scope)) query.Add($"scope={Uri.EscapeDataString(scope)}");
+        var tokenUrl = query.Count > 0 ? $"{realm}?{string.Join("&", query)}" : realm;
+
+        var tokenReq = new HttpRequestMessage(HttpMethod.Get, tokenUrl);
+        var (user, pass) = _credential.Value;
+        tokenReq.Headers.Authorization = new AuthenticationHeaderValue("Basic",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{pass}")));
+
+        var tokenResp = await _http.SendAsync(tokenReq, ct);
+        if (!tokenResp.IsSuccessStatusCode) return null;
+
+        var json = await tokenResp.Content.ReadAsStringAsync(ct);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("token", out var tokenEl))
+            return tokenEl.GetString();
+        if (doc.RootElement.TryGetProperty("access_token", out var atEl))
+            return atEl.GetString();
+        return null;
     }
 
     public async Task PushAsync(string reference, IReadOnlyList<OrasLayer> layers, CancellationToken ct = default)
@@ -108,6 +148,7 @@ public sealed class HttpOrasClient : IOrasClient
 
             using var fileStream = File.OpenRead(filePath);
             var req = new HttpRequestMessage(HttpMethod.Put, uriBuilder.Uri) { Content = new StreamContent(fileStream) };
+            if (_cachedToken != null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _cachedToken);
             req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             req.Content.Headers.ContentLength = size;
             _logger.LogDebug("PUT {Url} (Content-Length: {Size})", req.RequestUri, size);
@@ -289,6 +330,8 @@ public sealed class HttpOrasClient : IOrasClient
         {
             var req = new HttpRequestMessage(request.Method, request.RequestUri);
             foreach (var h in request.Headers) req.Headers.TryAddWithoutValidation(h.Key, h.Value);
+            if (_cachedToken != null)
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _cachedToken);
             if (contentBytes != null)
             {
                 req.Content = new ByteArrayContent(contentBytes);
@@ -298,6 +341,34 @@ public sealed class HttpOrasClient : IOrasClient
             var resp = await _http.SendAsync(req, ct);
             _logger.LogDebug("{Method} {Url} → {Status} {Reason}",
                 req.Method, req.RequestUri, (int)resp.StatusCode, resp.ReasonPhrase);
+
+            // Handle 401: fetch token and retry once
+            if ((int)resp.StatusCode == 401 && _cachedToken == null)
+            {
+                var token = await FetchTokenAsync(resp, ct);
+                if (token != null)
+                {
+                    _cachedToken = token;
+                    // Rebuild request with token and retry
+                    var retryReq = new HttpRequestMessage(request.Method, request.RequestUri);
+                    foreach (var h in request.Headers) retryReq.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                    retryReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _cachedToken);
+                    if (contentBytes != null)
+                    {
+                        retryReq.Content = new ByteArrayContent(contentBytes);
+                        if (contentType != null) retryReq.Content.Headers.ContentType = contentType;
+                    }
+                    resp = await _http.SendAsync(retryReq, ct);
+                    _logger.LogDebug("{Method} {Url} (with token) → {Status} {Reason}",
+                        retryReq.Method, retryReq.RequestUri, (int)resp.StatusCode, resp.ReasonPhrase);
+                }
+            }
+            else if (_cachedToken != null && !req.Headers.Contains("Authorization"))
+            {
+                // Already have a token but request didn't include it — shouldn't happen
+                // since we add it below, but just in case
+            }
+
             if (!resp.IsSuccessStatusCode && (int)resp.StatusCode != 429 && (int)resp.StatusCode != 503 && (int)resp.StatusCode != 500)
             {
                 var errorBody = await resp.Content.ReadAsStringAsync(ct);
