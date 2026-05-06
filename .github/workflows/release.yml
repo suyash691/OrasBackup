@@ -96,9 +96,9 @@ jobs:
           cd dist/cli
           for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
             if [ "$rid" = "win-x64" ]; then
-              zip -j ../../artifacts/orasbackup-${rid}.zip $rid/
+              zip -j ../../artifacts/orasbackup-${rid}.zip $rid/*
             else
-              tar czf ../../artifacts/orasbackup-${rid}.tar.gz -C $rid
+              tar czf ../../artifacts/orasbackup-${rid}.tar.gz -C $rid .
             fi
           done
           
@@ -108,9 +108,9 @@ jobs:
           cd dist/gui
           for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
             if [ "$rid" = "win-x64" ]; then
-              zip -j ../../artifacts/orasbackupgui-${rid}.zip $rid/
+              zip -j ../../artifacts/orasbackupgui-${rid}.zip $rid/*
             else
-              tar czf ../../artifacts/orasbackupgui-${rid}.tar.gz -C $rid
+              tar czf ../../artifacts/orasbackupgui-${rid}.tar.gz -C $rid .
             fi
           done
 
